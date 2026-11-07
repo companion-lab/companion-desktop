@@ -1,0 +1,21 @@
+node_modules
+dist
+.env
+.DS_Store
+src-tauri/target
+target
+.zcode
+
+src-tauri/.playwright-mcp
+coverage
+# Playwright
+/test-results/
+/playwright-report/
+
+# Plugin build artifacts: the dev discovery symlink and build.rs staging
+# output (both are rebuilt by features/build-all.sh / cargo build)
+/plugins
+/src-tauri/resources/
+
+# Tauri-generated capability schemas (regenerated on every build)
+/src-tauri/gen/schemas/
