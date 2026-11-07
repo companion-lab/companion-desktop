@@ -46,6 +46,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^5.0.5
         version: 5.0.5(vitest@5.0.5)
+      companion-cli:
+        specifier: ^0.1.0
+        version: 0.1.0
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -635,6 +638,11 @@ packages:
     resolution: {integrity: sha512-XWAtwJ6OHO+tj0EKCs0Y2UamnyOxseZWltU4x2U2wh8g4AigdjwvtUjvLP2tqkA/avxHEtzxNaqGq/YGNwckKg==}
     engines: {node: '>=18'}
 
+  companion-cli@0.1.0:
+    resolution: {integrity: sha512-JhOtLM+GLOYMvnmktY5mcT7v8Ej7zsr22GleNXsae1FpBeWrHSRMxSwBlA7Ja+MxpXC3ZSHmSbXcuX3BDXrijg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
 
@@ -665,6 +673,9 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
+
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
@@ -1256,6 +1267,11 @@ snapshots:
 
   chai@6.3.0: {}
 
+  companion-cli@0.1.0:
+    dependencies:
+      esbuild: 0.28.2
+      fflate: 0.8.3
+
   csstype@3.2.3: {}
 
   detect-libc@2.1.2: {}
@@ -1300,6 +1316,8 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
       picomatch: 4.0.7
+
+  fflate@0.8.3: {}
 
   fsevents@2.3.3:
     optional: true

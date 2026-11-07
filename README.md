@@ -26,14 +26,14 @@ The app is a small core (window shell, plugin system, settings shell) plus seven
 **Settings → Plugins** — uninstall any feature you don't need, restore it any
 time with the **Restore bundled features** button.
 
-| Plugin       | Description                                                                       |
-| ------------ | --------------------------------------------------------------------------------- |
-| 💬 Chat      | Streaming chat panel, 3 providers (OpenAI-compatible, Anthropic, Gemini), tool loop, wake word |
-| 🗣️ TTS       | On-device TTS (Supertonic-3) + cloud synthesis, viseme lip sync (Speech Synthesis plugin) |
-| 🎙️ STT       | On-device recognition (Moonshine) + cloud transcription, wake word (Speech Recognition plugin) |
-| ⏰ Alarms    | Alarm tools + background scheduler + ringing banner with snooze                    |
-| 📅 Calendar  | Dated/repeating events, birthday reminders, month/agenda views                     |
-| 🔌 MCP Tools | Model tool-calling over stdio / streamable-HTTP MCP servers                        |
+| Plugin       | Description                                                                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 💬 Chat      | Streaming chat panel, 3 providers (OpenAI-compatible, Anthropic, Gemini), tool loop, wake word                                                   |
+| 🗣️ TTS       | On-device TTS (Supertonic-3) + cloud synthesis, viseme lip sync (Speech Synthesis plugin)                                                        |
+| 🎙️ STT       | On-device recognition (Moonshine) + cloud transcription, wake word (Speech Recognition plugin)                                                   |
+| ⏰ Alarms    | Alarm tools + background scheduler + ringing banner with snooze                                                                                  |
+| 📅 Calendar  | Dated/repeating events, birthday reminders, month/agenda views                                                                                   |
+| 🔌 MCP Tools | Model tool-calling over stdio / streamable-HTTP MCP servers                                                                                      |
 | 🎭 VRM (vrm) | Avatar engine (Three.js scene, expression, lip sync, idle mixer), custom `.vrm` models, `.vrma` motion clips, emotion presets, graphics settings |
 
 Core (not removable): the transparent window shell, the plugin system itself
@@ -100,12 +100,12 @@ pnpm tauri dev
 
 ### Models & assets
 
-| What | Fetched by | License |
-|---|---|---|
-| Supertonic-3 TTS weights | `features/tts` `pnpm download:models` | [OpenRAIL-M](../features/tts/assets/supertonic/LICENSE) (Supertone) |
-| Moonshine `medium-streaming-en` STT model | `features/stt` `pnpm download:stt` | MIT (Moonshine AI) |
-| Moonshine prebuilt native library | `features/stt` `pnpm download:lib` | MIT (Moonshine AI) |
-| Default avatar `features/vrm/assets/model/demo.glb` | bundled in-repo | VRoid Hub uploader's terms — see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) |
+| What                                                | Fetched by                            | License                                                                           |
+| --------------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------- |
+| Supertonic-3 TTS weights                            | `features/tts` `pnpm download:models` | [OpenRAIL-M](../features/tts/assets/supertonic/LICENSE) (Supertone)               |
+| Moonshine `medium-streaming-en` STT model           | `features/stt` `pnpm download:stt`    | MIT (Moonshine AI)                                                                |
+| Moonshine prebuilt native library                   | `features/stt` `pnpm download:lib`    | MIT (Moonshine AI)                                                                |
+| Default avatar `features/vrm/assets/model/demo.glb` | bundled in-repo                       | VRoid Hub uploader's terms — see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) |
 
 Model weights are never committed; the scripts fetch them into gitignored
 paths. Attribution and full license texts live in
@@ -121,15 +121,15 @@ cd src-tauri && cargo test --lib   # Rust tests
 
 ## Tech Stack
 
-| Layer             | Technology                                                          | Purpose                                     |
-| ----------------- | ------------------------------------------------------------------- | ------------------------------------------- |
-| **Desktop Shell** | Tauri v2 (Rust)                                                     | Native window, transparency, plugin host    |
-| **Plugin system** | Rust dylib SDK + JS contribution registry                           | Feature isolation, runtime loading          |
-| **3D Rendering**  | Three.js + @pixiv/three-vrm 3.5 *(vrm plugin)*                      | VRM rendering, blendshapes, expressions     |
-| **STT**           | Moonshine Voice (Rust FFI) *(stt plugin)*                           | On-device speech-to-text                    |
-| **TTS**           | Supertonic-3 ONNX *(tts plugin)*                                    | Local speech synthesis                      |
-| **MCP**           | rmcp (official Rust SDK) *(mcp plugin)*                             | Model tool-calling server client            |
-| **Frontend**      | React + TypeScript + Vitest                                         | Shell UI, settings, plugin frontends        |
+| Layer             | Technology                                     | Purpose                                  |
+| ----------------- | ---------------------------------------------- | ---------------------------------------- |
+| **Desktop Shell** | Tauri v2 (Rust)                                | Native window, transparency, plugin host |
+| **Plugin system** | Rust dylib SDK + JS contribution registry      | Feature isolation, runtime loading       |
+| **3D Rendering**  | Three.js + @pixiv/three-vrm 3.5 _(vrm plugin)_ | VRM rendering, blendshapes, expressions  |
+| **STT**           | Moonshine Voice (Rust FFI) _(stt plugin)_      | On-device speech-to-text                 |
+| **TTS**           | Supertonic-3 ONNX _(tts plugin)_               | Local speech synthesis                   |
+| **MCP**           | rmcp (official Rust SDK) _(mcp plugin)_        | Model tool-calling server client         |
+| **Frontend**      | React + TypeScript + Vitest                    | Shell UI, settings, plugin frontends     |
 
 ## Architecture
 
@@ -171,44 +171,28 @@ cd src-tauri && cargo test --lib   # Rust tests
 ## Project Layout
 
 ```
-companion-tauri/
-├── app/                          # THE CORE (git repo root)
-│   ├── src-tauri/
-│   │   ├── src/
-│   │   │   ├── main.rs, lib.rs   # windows, secrets, quit/restart
-│   │   │   ├── plugin_host/      # plugin system: discovery, dylib loading,
-│   │   │   │                     #   commands, storage, seeding, zip import
-│   │   │   ├── hotkey.rs         # global shortcuts
-│   │   │   └── perf.rs           # performance config
-│   │   └── build.rs              # stages plugins/ into bundle resources
+companion/                       # repo root
+├── src-tauri/                    # Tauri v2 core (Rust)
 │   ├── src/
-│   │   ├── App.tsx               # main window shell (slots, bus, click-through)
-│   │   ├── settings.tsx          # settings window shell
-│   │   ├── plugins/              # host side: registry, slots, api, loader
-│   │   ├── services/             # TTS/STT provider registry seam
-│   │   ├── avatar-bus.ts         # plugin ⇄ avatar engine seam
-│   │   ├── events.ts             # core event bridge (ui prefs)
-│   │   ├── ui/                   # design kit, layouts, click-through
-│   │   └── perf / ui-prefs / window-size
-│   └── plugins -> ../plugins     # dev discovery symlink
-├── features/                     # bundled feature plugins (one dir each)
-│   ├── vrm/                      #   avatar engine + library + graphics
-│   ├── chat/  tts/  stt/  alarms/  calendar/  mcp/
-│   └── build-all.sh              # build every plugin into plugins/
-├── sdk/
-│   ├── rust/companion-plugin-sdk/   # Rust backend SDK (ABI-2 + Plugin trait)
-│   └── js/@companion-lab/plugin/        # JS/TS SDK (host-bridge shims + types)
-├── plugin-cli/                   # companion-plugin CLI: build + zip
-├── plugins/                      # built plugin packages (staging output)
-└── examples/                     # reference plugins (notes, all-features)
+│   │   ├── main.rs, lib.rs       # windows, secrets, quit/restart
+│   │   ├── plugin_host/          # plugin system: discovery, dylib loading,
+│   │   │                         #   commands, storage, seeding, zip import
+│   │   ├── hotkey.rs             # global shortcuts
+│   │   └── perf.rs               # performance config
+│   └── build.rs                  # stages plugins/ into bundle resources
+├── src/                          # frontend (React 19 + TypeScript)
+│   ├── App.tsx                   # main window shell (slots, bus, click-through)
+│   ├── settings.tsx              # settings window shell
+│   ├── plugins/                  # host side: registry, slots, api, loader
+│   ├── services/                 # TTS/STT provider registry seam
+│   ├── avatar-bus.ts             # plugin ⇄ avatar engine seam
+│   ├── events.ts                 # core event bridge (ui prefs)
+│   ├── ui/                       # design kit, layouts, click-through
+│   └── perf / ui-prefs / window-size
+├── e2e/                          # Playwright end-to-end tests
+├── public/                       # icons + bundled VRMA motion
+├── scripts/                      # build-plugin.mjs (dev builds), sign-macos.sh
+├── plugins -> ../plugins         # dev discovery symlink
+├── PLUGINS.md                    # plugin format + SDK guide
+└── THIRD-PARTY-NOTICES.md        # bundled model licenses
 ```
-
-## License
-
-The code in this repository is released under the [MIT License](LICENSE).
-
-Third-party models and assets keep their own licenses — Moonshine (MIT),
-Supertonic-3 (OpenRAIL-M, see
-[features/tts/assets/supertonic/LICENSE](../features/tts/assets/supertonic/LICENSE)),
-and the default avatar model per its uploader's terms. Full attribution:
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

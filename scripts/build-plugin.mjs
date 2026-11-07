@@ -3,12 +3,13 @@
 //
 //   node scripts/build-plugin.mjs <plugin-dir> [--backend]
 //
-// Thin wrapper around plugin-cli/lib/build.mjs, which also backs the
-// `companion-plugin` CLI — same build logic, plus zip packaging for
-// distribution (see plugin-cli/README.md).
+// Uses the published `companion-cli` npm package for the build logic — the
+// same logic that backs `companion-cli build` plus zip packaging for
+// distribution (https://github.com/companion-lab/plugin-cli).
 //
 // - Bundles <plugin-dir>/src/index.{tsx,ts,jsx,js} into the manifest's
-//   frontend entry (default frontend.js) inside the plugin dir.
+//   frontend entry (default frontend.js) inside the plugin dir; bundled
+//   assets/ are staged alongside so the plugin is self-contained.
 // - --backend: also runs `cargo build --release` in <plugin-dir>/backend and
 //   copies the produced cdylib to the manifest's backend.library name.
 // - --out: assemble artifacts into a clean package directory (e.g. the dev
@@ -18,10 +19,9 @@
 // @companion/plugin shims — the plugin never bundles its own React.
 
 import { createRequire } from "node:module";
-import { existsSync, cpSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildPlugin } from "../../plugin-cli/lib/build.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -35,7 +35,9 @@ if (!pluginDir || !existsSync(path.join(pluginDir, "manifest.json"))) {
   process.exit(1);
 }
 
-const esbuild = createRequire(import.meta.url)(path.join(repoRoot, "node_modules", "esbuild"));
+const nodeRequire = createRequire(import.meta.url);
+const { buildPlugin } = nodeRequire("companion-cli/lib/build.mjs");
+const esbuild = nodeRequire("esbuild");
 const sdkDir = path.resolve(repoRoot, "..", "sdk", "js", "@companion", "plugin");
 
 try {
@@ -48,15 +50,6 @@ try {
     esbuild,
     sdkDir,
   });
-  // Stage any bundled assets (e.g. the voice plugin's ONNX/STT models) so
-  // the plugin is self-contained. Without this, assets only exist in the
-  // source tree and the packaged plugin can't find them.
-  const assetsSrc = path.join(pluginDir, "assets");
-  const assetsDst = path.join(outDir ?? pluginDir, "assets");
-  if (existsSync(assetsSrc)) {
-    cpSync(assetsSrc, assetsDst, { recursive: true });
-    console.log(`[plugin] ${path.basename(pluginDir)}: staged assets -> ${path.relative(repoRoot, assetsDst)}`);
-  }
 } catch (err) {
   console.error(err.message);
   process.exit(1);

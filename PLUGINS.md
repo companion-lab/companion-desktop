@@ -216,17 +216,19 @@ the alarms plugin's `banner-styles.ts`.
 
 ### Package as a distributable zip
 
-`plugin-cli/` provides the `companion-plugin` CLI, which runs the same build
+`plugin-cli/` provides the `companion-cli` CLI, which runs the same build
 (esbuild frontend + cargo backend) and zips the result for import via
 Settings → Plugins → Import plugin…:
 
 ```bash
-node plugin-cli/bin/companion-plugin.mjs build examples/notes-plugin
-# -> dist/notes-0.1.0.zip
+companion-cli init my-plugin
+companion-cli build my-plugin
+# -> my-plugin/dist/my-plugin-0.1.0.zip
 ```
 
-After `pnpm install` (or `npm link`) inside `plugin-cli/` it runs as
-`companion-plugin build <plugin-dir>`. Options: `--out <dir>` (default
+Install it globally with `npm install -g companion-cli`, or run it straight
+from the repo with `node plugin-cli/bin/companion-cli.mjs …`. Options:
+`--out <dir>` (default
 `./dist`), `--name <file>` (default `<id>-<version>.zip`), `--flat` (manifest
 at the zip root instead of an `<id>/` folder — the importer accepts both),
 `--no-backend`, `--no-frontend`, `--sdk <dir>`. The zip contains only
