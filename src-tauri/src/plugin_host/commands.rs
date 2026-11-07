@@ -67,22 +67,28 @@ pub async fn plugin_read_frontend(
         .map_err(|e| format!("plugin task failed: {e}"))?
 }
 
-/// Import a plugin from a base64-encoded zip archive picked by the user.
-/// The heavy work (base64 decode, zip extraction, backend load) runs on a
-/// background thread: the command returns immediately and the
-/// `plugins-changed` event signals completion (or failure). Long-running
-/// commands lose their IPC responses on macOS while the webview's scheme
-/// task stays open — the same wedge quit_app works around.
+/// Import a plugin from a raw zip byte payload picked by the user. The bytes
+/// travel as the IPC request body (`application/octet-stream`) rather than a
+/// base64 JSON string: a ~400 MB plugin package would blow up several times
+/// over through the JSON/base64 path and OOM the webview.
+/// The heavy work (zip extraction, backend load) runs on a background thread:
+/// the command returns immediately and the `plugins-changed` event signals
+/// completion (or failure). Long-running commands lose their IPC responses on
+/// macOS while the webview's scheme task stays open — the same wedge quit_app
+/// works around.
 #[tauri::command(rename_all = "snake_case")]
 pub fn plugin_import_archive(
     state: State<'_, PluginHostState>,
-    archive_base64: String,
-    filename: String,
+    request: tauri::ipc::Request<'_>,
 ) -> Result<(), String> {
+    let tauri::ipc::InvokeBody::Raw(archive_bytes) = request.body() else {
+        return Err("expected a raw byte payload".into());
+    };
     let state = state.inner().clone();
+    let archive_bytes = archive_bytes.to_vec();
     std::thread::spawn(move || {
-        if let Err(e) = state.import_archive(&archive_base64, &filename) {
-            eprintln!("[plugins] import {filename} failed: {e}");
+        if let Err(e) = state.import_archive(&archive_bytes) {
+            eprintln!("[plugins] import failed: {e}");
         }
         state.notify_changed();
     });

@@ -561,25 +561,16 @@ impl PluginHostState {
         std::fs::write(&path, json).map_err(|e| e.to_string())
     }
 
-    /// Import a plugin from a base64-encoded zip archive. Extracts into a
-    /// temp dir, validates the manifest, then moves the package into
-    /// `{app_data}/plugins/<id>/` (replacing any existing one) and activates
-    /// it. Returns the imported plugin's summary.
-    pub fn import_archive(
-        &self,
-        archive_base64: &str,
-        _filename: &str,
-    ) -> Result<PluginInfo, String> {
-        use base64::Engine;
-        let bytes = base64::engine::general_purpose::STANDARD
-            .decode(archive_base64)
-            .map_err(|e| format!("invalid base64: {e}"))?;
-
+    /// Import a plugin from raw zip archive bytes. Writes the archive to a
+    /// temp dir, extracts, validates the manifest, then moves the package
+    /// into `{app_data}/plugins/<id>/` (replacing any existing one) and
+    /// activates it. Returns the imported plugin's summary.
+    pub fn import_archive(&self, archive_bytes: &[u8]) -> Result<PluginInfo, String> {
         let tmp_root = std::env::temp_dir().join("companion-plugin-import");
         let _ = std::fs::remove_dir_all(&tmp_root);
         std::fs::create_dir_all(&tmp_root).map_err(|e| e.to_string())?;
         let archive_path = tmp_root.join("plugin.zip");
-        std::fs::write(&archive_path, &bytes).map_err(|e| e.to_string())?;
+        std::fs::write(&archive_path, archive_bytes).map_err(|e| e.to_string())?;
 
         let extract_dir = tmp_root.join("extracted");
         std::fs::create_dir_all(&extract_dir).map_err(|e| e.to_string())?;

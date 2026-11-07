@@ -96,15 +96,16 @@ export function PluginsSection() {
     setImporting(true);
     setError(null);
     try {
-      const base64 = await fileToBase64(file);
+      // Send the raw bytes as the IPC request body instead of a base64 data
+      // URL: the JSON/base64 path multiplies a large package's memory several
+      // times over in the webview and dies with "Out of memory" on ~400 MB
+      // plugin zips.
+      const bytes = await file.arrayBuffer();
       // Fire-and-forget on the Rust side: the command returns before the
       // import finishes, and the plugins-changed event completes the flow
       // (frontend activation + pending-restart flag).
       importRef.current = true;
-      await invoke("plugin_import_archive", {
-        archive_base64: base64,
-        filename: file.name,
-      });
+      await invoke("plugin_import_archive", new Uint8Array(bytes));
       await refresh();
     } catch (e) {
       importRef.current = false;
@@ -291,21 +292,4 @@ export function PluginsSection() {
       )}
     </SectionCard>
   );
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== "string") {
-        reject(new Error("failed to read file"));
-        return;
-      }
-      const comma = result.indexOf(",");
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("file read error"));
-    reader.readAsDataURL(file);
-  });
 }
