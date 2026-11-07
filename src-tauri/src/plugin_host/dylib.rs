@@ -111,7 +111,30 @@ impl BackendInstance {
         // platform-appropriate name so one manifest works everywhere.
         let path = resolve_library_path(library_path, plugin_id)
             .map_err(|e| format!("backend library not found: {}", e))?;
-        let lib = unsafe { Library::new(&path) }.map_err(|e| format!("load failed: {e}"))?;
+        // dlopen dedupes by path for the lifetime of the process: re-importing
+        // a plugin rewrites the same library path, and dyld hands back the
+        // already-loaded image — the OLD code — so a "reloaded" backend keeps
+        // serving stale tools and handlers no matter how many times the zip is
+        // replaced (a removed chat tool survives every re-import until the app
+        // restarts). Copy the library to a per-load unique path and load that,
+        // so every import maps fresh code. Stale copies are small and die with
+        // the OS temp dir. Backends are never unloaded, so the copy must stay
+        // on disk (lazy page-ins read from it after load).
+        let unique_dir = std::env::temp_dir().join("companion-plugin-libs");
+        std::fs::create_dir_all(&unique_dir).map_err(|e| e.to_string())?;
+        let unique_name = format!(
+            "{}-{}-{}",
+            plugin_id,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0),
+            path.file_name().and_then(|n| n.to_str()).unwrap_or("backend"),
+        );
+        let load_path = unique_dir.join(unique_name);
+        std::fs::copy(&path, &load_path)
+            .map_err(|e| format!("copy backend library failed: {e}"))?;
+        let lib = unsafe { Library::new(&load_path) }.map_err(|e| format!("load failed: {e}"))?;
 
         let abi: libloading::Symbol<AbiFn> =
             unsafe { lib.get(b"companion_plugin_abi_version") }
