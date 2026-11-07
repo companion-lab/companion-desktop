@@ -20,6 +20,11 @@ pub fn run() {
                 #[cfg(target_os = "macos")]
                 make_transparent(&win);
                 let _ = win.show();
+                #[cfg(target_os = "macos")]
+                {
+                    join_all_spaces(&win);
+                    println!("[main] join_all_spaces applied");
+                }
             }
 
             // Read performance preferences first; controls whether we eager-load models.
@@ -226,6 +231,32 @@ fn make_transparent(win: &tauri::WebviewWindow) {
         let clear: *mut AnyObject = msg_send![ns_color_class, clearColor];
         let _: () = msg_send![ns_view, setBackgroundColor: clear];
         let _: () = msg_send![ns_view, setOpaque: false];
+    }
+}
+
+/// Desktop-pet behavior: the overlay follows every Space (and coexists with
+/// fullscreen apps) instead of being stranded on the Space it spawned on —
+/// an avatar stuck behind a fullscreen window stops painting entirely
+/// (WebKit suspends rendering for occluded windows), which also starves its
+/// animation and IPC loops.
+#[cfg(target_os = "macos")]
+fn join_all_spaces(win: &tauri::WebviewWindow) {
+    use objc2::msg_send;
+    use objc2::runtime::AnyObject;
+    use objc2_app_kit::NSWindowCollectionBehavior;
+    unsafe {
+        let ns_window = win.ns_window().expect("ns_window") as *mut AnyObject;
+        let before: usize = msg_send![ns_window, collectionBehavior];
+        let behavior = before
+            | NSWindowCollectionBehavior::CanJoinAllSpaces.bits()
+            | NSWindowCollectionBehavior::FullScreenAuxiliary.bits();
+        let _: () = msg_send![ns_window, setCollectionBehavior: behavior];
+        let after: usize = msg_send![ns_window, collectionBehavior];
+        println!(
+            "[main] collectionBehavior {before:#b} -> {after:#b} (want CanJoinAllSpaces={:b}, FullScreenAuxiliary={:b})",
+            NSWindowCollectionBehavior::CanJoinAllSpaces.bits(),
+            NSWindowCollectionBehavior::FullScreenAuxiliary.bits(),
+        );
     }
 }
 

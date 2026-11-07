@@ -29,7 +29,14 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$APPDATA/plugins/**",
+          "$APPDATA/plugins-data/**"
+        ]
+      }
     }
   },
   "bundle": {

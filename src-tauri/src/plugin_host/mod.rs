@@ -120,7 +120,11 @@ pub fn init_state(app: &AppHandle) -> PluginHostState {
     // uninstalled until "Restore bundled features".
     let bundled_dir = bundled_source_dir(app);
     if let Some(src_root) = &bundled_dir {
-        seed_bundled(src_root, &app_data_dir.join(PLUGINS_DIR), &load_removed(&app_data_dir));
+        seed_bundled(
+            src_root,
+            &app_data_dir.join(PLUGINS_DIR),
+            &load_removed(&app_data_dir),
+        );
     }
     // One-time plugin id rename (`library` -> `vrm`): the data dir moves to
     // the new id and a stale seeded package still declaring the old id is
@@ -144,10 +148,7 @@ pub fn init_state(app: &AppHandle) -> PluginHostState {
         let enabled = config.get(&manifest.id).copied().unwrap_or(true);
         let plugin_data_dir = data_dir.join(&manifest.id);
         if let Err(e) = std::fs::create_dir_all(&plugin_data_dir) {
-            eprintln!(
-                "[plugins:{}] could not create data dir: {e}",
-                manifest.id
-            );
+            eprintln!("[plugins:{}] could not create data dir: {e}", manifest.id);
         }
         let (backend, load_error) = if enabled {
             load_backend(app, &app_data_dir, &dir, &manifest)
@@ -199,7 +200,10 @@ fn bundled_source_dir(app: &AppHandle) -> Option<PathBuf> {
     // 2. Next to the executable (Windows/Linux release, or dev).
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            for cand in [dir.join(BUNDLED_RESOURCE_DIR), dir.join("..").join(BUNDLED_RESOURCE_DIR)] {
+            for cand in [
+                dir.join(BUNDLED_RESOURCE_DIR),
+                dir.join("..").join(BUNDLED_RESOURCE_DIR),
+            ] {
                 if cand.is_dir() {
                     return Some(cand);
                 }
@@ -389,7 +393,11 @@ impl PluginHostState {
                             && root.join(&p.manifest.id).is_dir()
                     })
                     .unwrap_or(false);
-                plugin_info(p, inner.config.get(&p.manifest.id).copied().unwrap_or(true), bundled)
+                plugin_info(
+                    p,
+                    inner.config.get(&p.manifest.id).copied().unwrap_or(true),
+                    bundled,
+                )
             })
             .collect()
     }
@@ -439,11 +447,7 @@ impl PluginHostState {
                 .plugins
                 .iter()
                 .filter(|p| inner.config.get(&p.manifest.id).copied().unwrap_or(true))
-                .filter_map(|p| {
-                    p.backend
-                        .clone()
-                        .map(|b| (p.manifest.id.clone(), b))
-                })
+                .filter_map(|p| p.backend.clone().map(|b| (p.manifest.id.clone(), b)))
                 .collect()
         };
         let mut tools: Vec<PluginToolInfo> = Vec::new();
@@ -500,7 +504,11 @@ impl PluginHostState {
                             && root.join(&p.manifest.id).is_dir()
                     })
                     .unwrap_or(false);
-                plugin_info(p, guard.config.get(&p.manifest.id).copied().unwrap_or(true), bundled)
+                plugin_info(
+                    p,
+                    guard.config.get(&p.manifest.id).copied().unwrap_or(true),
+                    bundled,
+                )
             })
             .collect();
         save_config(&self.inner.app_data_dir, &guard.config)?;
@@ -528,7 +536,8 @@ impl PluginHostState {
                 .ok_or_else(|| format!("plugin {plugin_id} has no frontend"))?;
             plugin.dir.join(&entry.entry)
         };
-        let bytes = std::fs::read(&path).map_err(|e| format!("frontend bundle not readable: {e}"))?;
+        let bytes =
+            std::fs::read(&path).map_err(|e| format!("frontend bundle not readable: {e}"))?;
         use base64::Engine;
         Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
     }
@@ -576,7 +585,8 @@ impl PluginHostState {
         std::fs::create_dir_all(&extract_dir).map_err(|e| e.to_string())?;
         let file = std::fs::File::open(&archive_path).map_err(|e| e.to_string())?;
         let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("not a valid zip: {e}"))?;
-        zip.extract(&extract_dir).map_err(|e| format!("zip extract failed: {e}"))?;
+        zip.extract(&extract_dir)
+            .map_err(|e| format!("zip extract failed: {e}"))?;
 
         let pkg_root = if extract_dir.join("manifest.json").exists() {
             extract_dir.clone()
@@ -607,12 +617,15 @@ impl PluginHostState {
         copy_dir_recursive(&pkg_root, &dest)?;
 
         let mut guard = self.lock()?;
-        if let Some(pos) = guard.plugins.iter().position(|p| p.manifest.id == manifest.id) {
+        if let Some(pos) = guard
+            .plugins
+            .iter()
+            .position(|p| p.manifest.id == manifest.id)
+        {
             guard.plugins.remove(pos);
         }
         guard.config.insert(manifest.id.clone(), true);
-        let (backend, load_error) =
-            load_backend(&self.inner.app, &app_data_dir, &dest, &manifest);
+        let (backend, load_error) = load_backend(&self.inner.app, &app_data_dir, &dest, &manifest);
         guard.plugins.push(LoadedPlugin {
             manifest: manifest.clone(),
             dir: dest.clone(),
@@ -641,7 +654,11 @@ impl PluginHostState {
                             && root.join(&p.manifest.id).is_dir()
                     })
                     .unwrap_or(false);
-                plugin_info(p, guard.config.get(&p.manifest.id).copied().unwrap_or(true), bundled)
+                plugin_info(
+                    p,
+                    guard.config.get(&p.manifest.id).copied().unwrap_or(true),
+                    bundled,
+                )
             })
             .collect::<Vec<_>>();
         drop(guard);
@@ -690,7 +707,11 @@ impl PluginHostState {
                             && root.join(&p.manifest.id).is_dir()
                     })
                     .unwrap_or(false);
-                plugin_info(p, guard.config.get(&p.manifest.id).copied().unwrap_or(true), bundled)
+                plugin_info(
+                    p,
+                    guard.config.get(&p.manifest.id).copied().unwrap_or(true),
+                    bundled,
+                )
             })
             .collect::<Vec<_>>();
         let app = self.inner.app.clone();
@@ -737,7 +758,9 @@ impl PluginHostState {
                 load_error,
             });
         }
-        guard.plugins.sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
+        guard
+            .plugins
+            .sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
         let bundled_root = Some(src_root);
         let infos = guard
             .plugins
@@ -750,7 +773,11 @@ impl PluginHostState {
                             && root.join(&p.manifest.id).is_dir()
                     })
                     .unwrap_or(false);
-                plugin_info(p, guard.config.get(&p.manifest.id).copied().unwrap_or(true), bundled)
+                plugin_info(
+                    p,
+                    guard.config.get(&p.manifest.id).copied().unwrap_or(true),
+                    bundled,
+                )
             })
             .collect::<Vec<_>>();
         let app = self.inner.app.clone();
@@ -762,7 +789,12 @@ impl PluginHostState {
     fn storage_map(&self, plugin_id: &str) -> Result<BTreeMap<String, Value>, String> {
         // Only discovered plugins get storage, so `plugin_id` here is always
         // a validated, already-known id — no path traversal risk.
-        if !self.lock()?.plugins.iter().any(|p| p.manifest.id == plugin_id) {
+        if !self
+            .lock()?
+            .plugins
+            .iter()
+            .any(|p| p.manifest.id == plugin_id)
+        {
             return Err(format!("unknown plugin: {plugin_id}"));
         }
         let path = storage_path(&self.inner.app_data_dir, plugin_id);
@@ -786,12 +818,11 @@ fn plugin_info(p: &LoadedPlugin, enabled: bool, bundled: bool) -> PluginInfo {
         has_backend: p.manifest.backend.is_some(),
         backend_loaded: p.backend.is_some(),
         load_error: p.load_error.clone(),
-        frontend_path: p.manifest.frontend.as_ref().map(|f| {
-            p.dir
-                .join(&f.entry)
-                .to_string_lossy()
-                .into_owned()
-        }),
+        frontend_path: p
+            .manifest
+            .frontend
+            .as_ref()
+            .map(|f| p.dir.join(&f.entry).to_string_lossy().into_owned()),
         dir: p.dir.to_string_lossy().into_owned(),
         bundled,
     }
@@ -799,12 +830,14 @@ fn plugin_info(p: &LoadedPlugin, enabled: bool, bundled: bool) -> PluginInfo {
 
 /// Search roots: app data always; the repo-root `plugins/` folder in dev.
 fn plugin_dirs(app: &AppHandle) -> Vec<PathBuf> {
-    let mut dirs = vec![app.path().app_data_dir().unwrap_or_else(|_| std::env::temp_dir()).join(PLUGINS_DIR)];
+    let mut dirs = vec![app
+        .path()
+        .app_data_dir()
+        .unwrap_or_else(|_| std::env::temp_dir())
+        .join(PLUGINS_DIR)];
     if cfg!(debug_assertions) {
         if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
-            let dev = PathBuf::from(manifest_dir)
-                .join("..")
-                .join(PLUGINS_DIR);
+            let dev = PathBuf::from(manifest_dir).join("..").join(PLUGINS_DIR);
             if let Ok(canon) = dev.canonicalize() {
                 if canon.is_dir() {
                     dirs.push(canon);
@@ -836,10 +869,7 @@ fn discover(dirs: &[PathBuf]) -> Vec<(PathBuf, PluginManifest)> {
             let manifest = match PluginManifest::parse(&json) {
                 Ok(manifest) => manifest,
                 Err(e) => {
-                    eprintln!(
-                        "[plugins] skipping {}: {e}",
-                        pkg_dir.display()
-                    );
+                    eprintln!("[plugins] skipping {}: {e}", pkg_dir.display());
                     continue;
                 }
             };
@@ -869,13 +899,15 @@ fn load_backend(
             let library = dir.join(&backend.library);
             let data_dir = app_data_dir.join(DATA_DIR).join(&manifest.id);
             if let Err(e) = std::fs::create_dir_all(&data_dir) {
-                eprintln!(
-                    "[plugins:{}] could not create data dir: {e}",
-                    manifest.id
-                );
+                eprintln!("[plugins:{}] could not create data dir: {e}", manifest.id);
             }
-            match dylib::BackendInstance::load(app, &library, &manifest.id, data_dir, dir.to_path_buf())
-            {
+            match dylib::BackendInstance::load(
+                app,
+                &library,
+                &manifest.id,
+                data_dir,
+                dir.to_path_buf(),
+            ) {
                 Ok(instance) => (Some(Arc::new(Mutex::new(instance))), None),
                 Err(e) => {
                     eprintln!("[plugins:{}] backend load failed: {e}", manifest.id);
@@ -903,7 +935,9 @@ fn save_config(app_data_dir: &Path, config: &BTreeMap<String, bool>) -> Result<(
 }
 
 fn storage_path(app_data_dir: &Path, plugin_id: &str) -> PathBuf {
-    app_data_dir.join(DATA_DIR).join(format!("{plugin_id}.json"))
+    app_data_dir
+        .join(DATA_DIR)
+        .join(format!("{plugin_id}.json"))
 }
 
 fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
@@ -964,7 +998,9 @@ fn migrate_renamed_plugin(app_data_dir: &Path, old_id: &str, new_id: &str) {
         let data_to = app_data_dir.join(DATA_DIR).join(new_id);
         if !data_to.exists() {
             match std::fs::rename(&data_from, &data_to) {
-                Ok(()) => println!("[plugins] migrated plugins-data/{old_id} to plugins-data/{new_id}"),
+                Ok(()) => {
+                    println!("[plugins] migrated plugins-data/{old_id} to plugins-data/{new_id}")
+                }
                 Err(e) => eprintln!("[plugins] rename data dir {old_id} -> {new_id}: {e}"),
             }
         } else {
@@ -980,15 +1016,13 @@ fn migrate_renamed_plugin(app_data_dir: &Path, old_id: &str, new_id: &str) {
     let declares_old = std::fs::read_to_string(&manifest)
         .ok()
         .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
-        .and_then(|v| {
-            v.get("id")
-                .and_then(|i| i.as_str())
-                .map(|s| s == old_id)
-        })
+        .and_then(|v| v.get("id").and_then(|i| i.as_str()).map(|s| s == old_id))
         .unwrap_or(false);
     if declares_old {
         match std::fs::remove_dir_all(&pkg) {
-            Ok(()) => println!("[plugins] removed stale {old_id} package (plugin renamed to {new_id})"),
+            Ok(()) => {
+                println!("[plugins] removed stale {old_id} package (plugin renamed to {new_id})")
+            }
             Err(e) => eprintln!("[plugins] remove stale {old_id} package: {e}"),
         }
     }
@@ -997,7 +1031,6 @@ fn migrate_renamed_plugin(app_data_dir: &Path, old_id: &str, new_id: &str) {
 /// One-time migration: legacy single-file feature storage moves into the
 /// owning plugin's data dir. The original is renamed `*.migrated`, never
 /// deleted, so a rollback only needs a rename back.
-
 
 /// The pre-split voice plugin (one package owning TTS + STT) was replaced by
 /// the separate `tts` and `stt` plugins in the same release. Clean cut, no
@@ -1056,21 +1089,18 @@ fn migrate_replaced_plugin(app_data_dir: &Path, old_id: &str) {
         println!("[plugins] pruned replaced plugin config entry: {old_id}");
     }
     let removed_path = app_data_dir.join(REMOVED_FILE);
-    let removed_changed = std::fs::read(&removed_path)
-        .ok()
-        .and_then(|raw| {
-            let mut ids: HashSet<String> =
-                serde_json::from_slice(&raw).unwrap_or_default();
-            let had = ids.remove(old_id);
-            if had {
-                Some((
-                    serde_json::to_vec(&ids).unwrap_or_else(|_| raw.clone()),
-                    true,
-                ))
-            } else {
-                None
-            }
-        });
+    let removed_changed = std::fs::read(&removed_path).ok().and_then(|raw| {
+        let mut ids: HashSet<String> = serde_json::from_slice(&raw).unwrap_or_default();
+        let had = ids.remove(old_id);
+        if had {
+            Some((
+                serde_json::to_vec(&ids).unwrap_or_else(|_| raw.clone()),
+                true,
+            ))
+        } else {
+            None
+        }
+    });
     if let Some((json, _)) = removed_changed {
         let _ = std::fs::write(&removed_path, json);
         println!("[plugins] pruned replaced plugin tombstone: {old_id}");
@@ -1079,21 +1109,23 @@ fn migrate_replaced_plugin(app_data_dir: &Path, old_id: &str) {
 
     // Per-plugin data dir/file: voice never wrote one, but retire defensively
     // so stray state doesn't linger under the old id.
-    for name in [
-        format!("{old_id}.json"),
-        format!("{old_id}.json.migrated"),
-    ] {
+    for name in [format!("{old_id}.json"), format!("{old_id}.json.migrated")] {
         let path = app_data_dir.join(DATA_DIR).join(name);
         if path.exists() {
-            let _ = std::fs::rename(&path, path.with_file_name(format!("{old_id}.json.migrated")));
+            let _ = std::fs::rename(
+                &path,
+                path.with_file_name(format!("{old_id}.json.migrated")),
+            );
         }
     }
     let data_dir = app_data_dir.join(DATA_DIR).join(old_id);
     if data_dir.is_dir() {
-        let _ = std::fs::rename(&data_dir, data_dir.with_file_name(format!("{old_id}.migrated")));
+        let _ = std::fs::rename(
+            &data_dir,
+            data_dir.with_file_name(format!("{old_id}.migrated")),
+        );
     }
 }
-
 
 fn migrate_legacy_file(app_data_dir: &Path, legacy: &str, plugin_id: &str, target: &str) {
     let from = app_data_dir.join(legacy);
