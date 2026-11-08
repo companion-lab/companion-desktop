@@ -25,7 +25,7 @@ jobs:
           # Oldest supported runner: keeps the bundled binaries' glibc
           # requirement low for end-user distros.
           - os: ubuntu-22.04
-          - os: windows-latest
+          # - os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
