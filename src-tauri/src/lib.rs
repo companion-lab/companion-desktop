@@ -1,8 +1,6 @@
 #![allow(unexpected_cfgs)]
 
 mod plugin_host;
-mod perf;
-mod hotkey;
 
 use tauri::{Manager, WindowEvent};
 
@@ -10,7 +8,10 @@ use tauri::{Manager, WindowEvent};
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
-        .plugin(hotkey::plugin())
+        // Global shortcuts are registered from plugin frontends (e.g. the stt
+        // plugin's mic toggle) through the JS API — the host only provides the
+        // plugin and the capability permissions, no fixed handler.
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             // Show the main window before any plugin work: its webview page
             // is already loading, so first visibility shouldn't wait on
@@ -27,15 +28,8 @@ pub fn run() {
                 }
             }
 
-            // Read performance preferences first; controls whether we eager-load models.
-            let perf_config = perf::read_config(app.handle());
-            println!("Performance config loaded: mode={:?}", perf_config.load_mode);
-            app.manage(perf::init_state(perf_config));
-
             // Discover and load plugin packages (app data + dev plugins dir)
             app.manage(plugin_host::init_state(app.handle()));
-
-            app.manage(hotkey::init_state());
 
             // Warm the settings webview so its first open is instant — but a
             // beat later, off the boot path: a second webview spawning while
@@ -79,8 +73,6 @@ pub fn run() {
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
-            perf::get_performance_config,
-            perf::set_performance_config,
             open_settings,
             restart_app,
             quit_app,
@@ -98,8 +90,6 @@ pub fn run() {
             plugin_host::commands::plugin_import_archive,
             plugin_host::commands::plugin_delete,
             plugin_host::commands::plugin_restore_bundled,
-            hotkey::set_mic_shortcut,
-            hotkey::get_mic_shortcut,
             cursor_window_local,
         ])
         .run(tauri::generate_context!())

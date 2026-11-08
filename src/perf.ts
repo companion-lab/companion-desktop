@@ -12,9 +12,17 @@ export const DEFAULT_PERF: PerformanceConfig = {
   antialias: true,
 };
 
+// Perf persistence lives in the vrm plugin backend — the graphics settings UI
+// is that plugin's — so core reaches it through the plugin host like any
+// other method call. The backend persists the file and broadcasts
+// `perf-changed` (plugin-namespaced: plugin:vrm:perf-changed) to all windows.
+
 export async function loadPerf(): Promise<PerformanceConfig> {
   try {
-    const cfg = await invoke<PerformanceConfig>("get_performance_config");
+    const cfg = await invoke<PerformanceConfig>("plugin_call", {
+      plugin_id: "vrm",
+      method: "vrm.get_performance_config",
+    });
     return { ...DEFAULT_PERF, ...cfg };
   } catch {
     return { ...DEFAULT_PERF };
@@ -22,7 +30,9 @@ export async function loadPerf(): Promise<PerformanceConfig> {
 }
 
 export async function savePerf(cfg: PerformanceConfig): Promise<PerformanceConfig> {
-  // The backend persists the file and emits perf-changed to all windows.
-  return invoke<PerformanceConfig>("set_performance_config", { config: cfg });
+  return invoke<PerformanceConfig>("plugin_call", {
+    plugin_id: "vrm",
+    method: "vrm.set_performance_config",
+    payload: { config: cfg },
+  });
 }
-

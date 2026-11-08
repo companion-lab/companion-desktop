@@ -13,7 +13,10 @@ describe("loadPerf", () => {
   it("merges backend config over the defaults", async () => {
     invoke.mockResolvedValue({ fps_cap: "thirty" });
     expect(await loadPerf()).toEqual({ ...DEFAULT_PERF, fps_cap: "thirty" });
-    expect(invoke).toHaveBeenCalledWith("get_performance_config");
+    expect(invoke).toHaveBeenCalledWith("plugin_call", {
+      plugin_id: "vrm",
+      method: "vrm.get_performance_config",
+    });
   });
 
   it("falls back to defaults when the backend errors", async () => {
@@ -27,7 +30,11 @@ describe("savePerf", () => {
     invoke.mockResolvedValue({ ...DEFAULT_PERF, tts_threads: 4 });
     const cfg = { ...DEFAULT_PERF, tts_threads: 4 };
     expect(await savePerf(cfg)).toEqual({ ...DEFAULT_PERF, tts_threads: 4 });
-    expect(invoke).toHaveBeenCalledWith("set_performance_config", { config: cfg });
+    expect(invoke).toHaveBeenCalledWith("plugin_call", {
+      plugin_id: "vrm",
+      method: "vrm.set_performance_config",
+      payload: { config: cfg },
+    });
   });
 
   it("propagates write failures", async () => {
@@ -35,5 +42,3 @@ describe("savePerf", () => {
     await expect(savePerf(DEFAULT_PERF)).rejects.toThrow("read-only fs");
   });
 });
-
-

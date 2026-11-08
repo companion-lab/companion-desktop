@@ -4,9 +4,8 @@ import { avatarBus } from "./avatar-bus";
 import { invoke } from "@tauri-apps/api/core";
 import { applyWindowSize } from "./window-size";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { emit as tauriEmit } from "@tauri-apps/api/event";
 import { onUiPrefsChanged, type UiPrefs } from "./events";
-import { loadUiPrefs, shortcutFromEvent } from "./ui-prefs";
+import { loadUiPrefs } from "./ui-prefs";
 import { MainWindowLayout } from "./ui/templates/MainWindowLayout";
 import { SlotOutlet, WidgetHost } from "./plugins/slots";
 
@@ -16,8 +15,6 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [uiPrefs, setUiPrefs] = useState<UiPrefs>(loadUiPrefs);
-  const uiPrefsRef = useRef(uiPrefs);
-  uiPrefsRef.current = uiPrefs;
 
   useEffect(() => {
     const applySaved = () => {
@@ -58,21 +55,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    invoke("set_mic_shortcut", { shortcut: uiPrefsRef.current.micShortcut }).catch(() => {});
     const offUi = onUiPrefsChanged((p) => {
       setUiPrefs(p);
-      invoke("set_mic_shortcut", { shortcut: p.micShortcut }).catch(() => {});
     });
-    const onKey = (e: KeyboardEvent) => {
-      const combo = shortcutFromEvent(e);
-      if (combo && combo === uiPrefsRef.current.micShortcut) {
-        e.preventDefault();
-        tauriEmit("mic-toggle").catch(() => {});
-      }
-    };
-    window.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("keydown", onKey);
       offUi();
     };
   }, []);

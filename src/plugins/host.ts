@@ -9,6 +9,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import React from "react";
 import ReactDOMClient from "react-dom/client";
+// Exposed to plugin bundles alongside React: their JSX runtime shim needs the
+// real jsx/jsxs (with React's static-children handling) — the main "react"
+// entry doesn't export them, which used to force the shim's createElement
+// fallback and made dev React warn for every keyless element in any
+// multi-child JSX across all plugins.
+import * as JsxRuntime from "react/jsx-runtime";
 import * as ui from "../ui";
 import { createPluginContext } from "./api";
 import { registerBuiltinContributions } from "./builtin";import { getSystemPrompts, getTools, removePluginContributions } from "./registry";
@@ -165,6 +171,7 @@ function setHostGlobals() {
     __companion_host__?: {
       React: unknown;
       ReactDOMClient: unknown;
+      JsxRuntime: unknown;
       settings: { useSettingsState: typeof useSettingsState };
       ui: UiExports;
       tools: { get: typeof getTools };
@@ -174,6 +181,7 @@ function setHostGlobals() {
   w.__companion_host__ = {
     React,
     ReactDOMClient,
+    JsxRuntime,
     settings: { useSettingsState },
     ui: ui as UiExports,
     tools: { get: getTools },

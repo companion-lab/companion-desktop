@@ -143,6 +143,9 @@ pub fn init_state(app: &AppHandle) -> PluginHostState {
     migrate_legacy_dir(&app_data_dir, "models", "vrm", "models");
     migrate_legacy_file(&app_data_dir, "active_model.txt", "vrm", "active_model.txt");
     migrate_legacy_file(&app_data_dir, "calendar.json", "calendar", "calendar.json");
+    // Performance config moved to the vrm plugin backend (the perf settings
+    // UI lives there); the host's root-level file retires into its data dir.
+    migrate_legacy_file(&app_data_dir, "performance.json", "vrm", "performance.json");
     let mut plugins = Vec::new();
     for (dir, manifest) in discover(&plugin_dirs(app)) {
         let enabled = config.get(&manifest.id).copied().unwrap_or(true);
