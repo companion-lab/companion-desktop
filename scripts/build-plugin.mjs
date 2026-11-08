@@ -38,7 +38,18 @@ if (!pluginDir || !existsSync(path.join(pluginDir, "manifest.json"))) {
 const nodeRequire = createRequire(import.meta.url);
 const { buildPlugin } = nodeRequire("companion-cli/lib/build.mjs");
 const esbuild = nodeRequire("esbuild");
-const sdkDir = path.resolve(repoRoot, "..", "sdk", "js", "@companion", "plugin");
+// SDK shims the frontend bundle aliases react/@companion/plugin through.
+// Resolution order: explicit COMPANION_SDK_DIR override, then the local
+// sibling checkout (multi-repo dev layout), then the published
+// @companion-lab/plugin package (ships index.ts plus the same shim files) —
+// that last one is what CI uses, where no sibling sdk/ checkout exists.
+const localSdkDir = path.resolve(repoRoot, "..", "sdk", "js", "@companion", "plugin");
+const sdkDir =
+  process.env.COMPANION_SDK_DIR ??
+  (existsSync(path.join(localSdkDir, "index.ts"))
+    ? localSdkDir
+    // exports "." -> ./index.ts, so dirname() lands on the package root
+    : path.dirname(nodeRequire.resolve("@companion-lab/plugin")));
 
 try {
   await buildPlugin({
