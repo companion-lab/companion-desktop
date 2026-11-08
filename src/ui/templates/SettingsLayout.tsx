@@ -45,7 +45,19 @@ export function SettingsLayout({
   const current = tabs.find((t) => t.id === active) ?? tabs[0];
 
   return (
-    <div className="st-shell">
+    <>
+      {/* Ambient background: the landing page's drifting blobs, data motes
+          and radar glow, fixed behind the whole shell (see settings.css). */}
+      <div className="st-ambient" aria-hidden="true">
+        <div className="st-blob st-blob-a" />
+        <div className="st-blob st-blob-b" />
+        <div className="st-blob st-blob-c" />
+        <div className="st-motes st-motes-far" />
+        <div className="st-motes st-motes-near" />
+        <div className="st-radar" />
+      </div>
+
+      <div className="st-shell">
       <nav className="st-side" aria-label="Settings sections">
         <div className="st-brand">
           <img
@@ -98,7 +110,18 @@ export function SettingsLayout({
 
       <main className="st-main" role="tabpanel">
         <header className="st-view-header">
-          <h2 className="st-view-title">{current.label}</h2>
+          {/* HUD breadcrumb strip, matching the landing hero's cmp:// line */}
+          <div className="st-hud-line">
+            <span>cmp://settings/{current.id}</span>
+            <span className="st-hud-status">
+              <span className="st-hud-dot" aria-hidden="true" />
+              autosave: on
+            </span>
+          </div>
+          <h2 className="st-view-title">
+            {current.label}
+            <span className="st-cursor" aria-hidden="true">_</span>
+          </h2>
           <p className="st-view-desc">{current.desc}</p>
         </header>
 
@@ -109,6 +132,7 @@ export function SettingsLayout({
           keychain.
         </footer>
       </main>
-    </div>
+      </div>
+    </>
   );
 }
