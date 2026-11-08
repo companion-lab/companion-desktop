@@ -6,6 +6,8 @@
 	<true/>
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
+	<key>com.apple.security.device.camera</key>
+	<true/>
 	<!-- Hardened runtime gets enabled implicitly by the restricted mic
 	     entitlements above; without this the ad-hoc app then refuses to
 	     dlopen the linker-signed plugin backend dylibs (library

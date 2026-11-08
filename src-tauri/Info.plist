@@ -4,5 +4,7 @@
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Companion uses the microphone for local speech recognition.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Companion uses the camera so the avatar can see you when asked (Vision plugin).</string>
 </dict>
 </plist>
