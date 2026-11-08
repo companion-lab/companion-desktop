@@ -129,6 +129,7 @@ for feature in "${features[@]}"; do
   echo "[build-all] building $feature -> $out_dir/$feature"
   if ! node "$repo_root/scripts/build-plugin.mjs" "$dir" $backend_flag_tmp --out "$out_dir/$feature"; then
     echo "[build-all] FAILED: $feature" >&2
+    echo "::error::[build-all] plugin '$feature' failed to build (see the log above this line)"
     status=1
   fi
 done

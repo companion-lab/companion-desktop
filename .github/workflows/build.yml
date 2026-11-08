@@ -27,12 +27,6 @@ jobs:
           - os: ubuntu-22.04
           - os: windows-latest
     runs-on: ${{ matrix.os }}
-    env:
-      # bindgen (companion-plugin-stt/moonshine-sys) needs libclang; Windows
-      # runners ship LLVM here. Empty on macOS/Linux, where libclang is
-      # auto-detected. (The runner context is unavailable in job-level env,
-      # so matrix.os is used instead.)
-      LIBCLANG_PATH: ${{ matrix.os == 'windows-latest' && 'C:\Program Files\LLVM\bin' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -69,6 +63,10 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      # Frontends resolve their own npm deps (e.g. vrm's three) from each
+      # repo; esbuild aliases react/@companion to the host SDK shims via the
+      # @companion-lab/plugin devDependency. Backend caches: one entry per
+      # plugin repo that has a backend/ crate (chat is frontend-only).
       - name: Cache Rust builds
         uses: Swatinem/rust-cache@v2
         with:
@@ -76,7 +74,6 @@ jobs:
             src-tauri
             plugin-repos/companion-plugin-alarms/backend
             plugin-repos/companion-plugin-calendar/backend
-            plugin-repos/companion-plugin-chat/backend
             plugin-repos/companion-plugin-mcp/backend
             plugin-repos/companion-plugin-stt/backend
             plugin-repos/companion-plugin-tts/backend
