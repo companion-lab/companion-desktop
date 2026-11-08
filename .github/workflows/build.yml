@@ -29,9 +29,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       # bindgen (companion-plugin-stt/moonshine-sys) needs libclang; Windows
-      # runners ship LLVM here. Harmless no-op on macOS/Linux, where libclang
-      # is auto-detected.
-      LIBCLANG_PATH: ${{ runner.os == 'Windows' && 'C:\Program Files\LLVM\bin' || '' }}
+      # runners ship LLVM here. Empty on macOS/Linux, where libclang is
+      # auto-detected. (The runner context is unavailable in job-level env,
+      # so matrix.os is used instead.)
+      LIBCLANG_PATH: ${{ matrix.os == 'windows-latest' && 'C:\Program Files\LLVM\bin' || '' }}
     steps:
       - uses: actions/checkout@v4
 
