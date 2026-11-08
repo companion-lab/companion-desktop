@@ -42,8 +42,9 @@ avatar-bus seam plugins drive the avatar through, push-to-talk hotkey
 plumbing, performance config, and OS keychain access.
 
 ```bash
-# Rebuild all bundled feature plugins after editing sources in features/:
-features/build-all.sh --backend
+# Rebuild all bundled feature plugins after editing their sources
+# in plugin-repos/:
+scripts/build-all-plugins.sh --backend
 ```
 
 See [PLUGINS.md](PLUGINS.md) for the plugin authoring guide (manifest,
@@ -82,30 +83,36 @@ Tools are only offered when a message plausibly needs them, and there's a keywor
 ## Setup
 
 ```bash
-# Plugin frontend deps (vrm bundles Three.js; calendar vendors react-big-calendar)
-cd features/vrm && pnpm install && cd ../..
-cd features/calendar && pnpm install && cd ../..
+# 1. Clone the bundled plugin sources into plugin-repos/ (the build script
+#    resolves plugin sources from there — the same step CI does)
+mkdir -p plugin-repos
+for plugin in alarms calendar chat mcp stt tts vrm; do
+  git clone --depth 1 \
+    "https://github.com/companion-lab/companion-plugin-${plugin}.git" \
+    "plugin-repos/companion-plugin-${plugin}"
+done
 
-# Speech plugin models + native lib (~660MB, feature-owned scripts)
-cd features/stt && pnpm download:models && cd ../..   # Moonshine STT models + native lib
-cd features/tts && pnpm download:models && cd ../..   # Supertonic TTS weights
+# 2. Build the bundled plugins. Installs each plugin's npm deps, downloads
+#    the speech models + native lib (~500 MB), and builds frontends and
+#    backends into src-tauri/resources/plugins (where the app loads them).
+scripts/build-all-plugins.sh --backend --out src-tauri/resources/plugins
 
-# Build the bundled plugin packages
-features/build-all.sh --backend
-
-cd app
+# 3. Install app dependencies and run
 pnpm install
 pnpm tauri dev
 ```
 
+If you keep the plugin sources somewhere else, point the
+`COMPANION_PLUGIN_REPOS` environment variable at that directory instead.
+
 ### Models & assets
 
-| What                                                | Fetched by                            | License                                                                           |
-| --------------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------- |
-| Supertonic-3 TTS weights                            | `features/tts` `pnpm download:models` | [OpenRAIL-M](../features/tts/assets/supertonic/LICENSE) (Supertone)               |
-| Moonshine `medium-streaming-en` STT model           | `features/stt` `pnpm download:stt`    | MIT (Moonshine AI)                                                                |
-| Moonshine prebuilt native library                   | `features/stt` `pnpm download:lib`    | MIT (Moonshine AI)                                                                |
-| Default avatar `features/vrm/assets/model/demo.glb` | bundled in-repo                       | VRoid Hub uploader's terms — see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) |
+| What                                      | Fetched by                                       | License                    |
+| ----------------------------------------- | ------------------------------------------------ | -------------------------- |
+| Supertonic-3 TTS weights                  | the tts plugin's download script (Setup step 2)  | OpenRAIL-M (Supertone)     |
+| Moonshine `medium-streaming-en` STT model | the stt plugin's download script (Setup step 2)  | MIT (Moonshine AI)         |
+| Moonshine prebuilt native library         | the stt plugin's download script (`--backend`)   | MIT (Moonshine AI)         |
+| Default avatar model                      | bundled with the vrm plugin package              | VRoid Hub uploader's terms |
 
 Model weights are never committed; the scripts fetch them into gitignored
 paths. Attribution and full license texts live in
@@ -115,9 +122,12 @@ paths. Attribution and full license texts live in
 
 ```bash
 pnpm test                          # frontend tests (vitest)
-cd features/vrm && pnpm test       # avatar engine tests (vitest)
+pnpm e2e                           # Playwright end-to-end tests
 cd src-tauri && cargo test --lib   # Rust tests
 ```
+
+The bundled plugins carry their own test suites in their repos under
+`plugin-repos/`.
 
 ## Tech Stack
 
@@ -137,10 +147,8 @@ cd src-tauri && cargo test --lib   # Rust tests
 ┌────────────────────────────────────────────────────────────────┐
 │  Tauri Shell (Rust) — the core                                 │
 │  ├─ lib.rs           window management, secrets, quit/restart  │
-│  ├─ plugin_host/     discovery, dylib loading (ABI-2), storage │
-│  │                   seeding, zip import, plugin_call routing  │
-│  ├─ hotkey.rs        global shortcuts                          │
-│  └─ perf.rs          performance config                        │
+│  └─ plugin_host/     discovery, dylib loading (ABI-2), storage │
+│                      seeding, zip import, plugin_call routing  │
 └──────────────┬─────────────────────────────────────────────────┘
                │  plugin_call / plugin_read_frontend
        ┌───────▼───────────────────────────────────────┐
@@ -171,14 +179,12 @@ cd src-tauri && cargo test --lib   # Rust tests
 ## Project Layout
 
 ```
-companion/                       # repo root
+.                                # repo root
 ├── src-tauri/                    # Tauri v2 core (Rust)
 │   ├── src/
 │   │   ├── main.rs, lib.rs       # windows, secrets, quit/restart
-│   │   ├── plugin_host/          # plugin system: discovery, dylib loading,
-│   │   │                         #   commands, storage, seeding, zip import
-│   │   ├── hotkey.rs             # global shortcuts
-│   │   └── perf.rs               # performance config
+│   │   └── plugin_host/          # plugin system: discovery, dylib loading,
+│   │                             #   commands, storage, seeding, zip import
 │   └── build.rs                  # stages plugins/ into bundle resources
 ├── src/                          # frontend (React 19 + TypeScript)
 │   ├── App.tsx                   # main window shell (slots, bus, click-through)
@@ -191,8 +197,11 @@ companion/                       # repo root
 │   └── perf / ui-prefs / window-size
 ├── e2e/                          # Playwright end-to-end tests
 ├── public/                       # icons + bundled VRMA motion
-├── scripts/                      # build-plugin.mjs (dev builds), sign-macos.sh
-├── plugins -> ../plugins         # dev discovery symlink
+├── scripts/                      # build-all-plugins.sh, build-plugin.mjs,
+│                                 #   sign-macos.sh
+├── plugin-repos/                 # bundled plugin sources (cloned in Setup)
+├── plugins/                      # dev plugin discovery dir (default build
+│                                 #   output, gitignored)
 ├── PLUGINS.md                    # plugin format + SDK guide
 └── THIRD-PARTY-NOTICES.md        # bundled model licenses
 ```
