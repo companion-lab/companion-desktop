@@ -247,6 +247,12 @@ export function hasTab(id: string): boolean {
   return store.tabs.has(id);
 }
 
+/** One tab contribution by id — carries the whole-tab `component` when the
+ *  tab declared one (core tabs are section-assembled and have none). */
+export function getTab(id: string): SettingsTabContribution | undefined {
+  return store.tabs.get(id)?.value;
+}
+
 export function getTabOverride(id: string): TabOverrideContribution["component"] | undefined {
   const entry = store.tabOverrides.get(id);
   return entry?.value.component;

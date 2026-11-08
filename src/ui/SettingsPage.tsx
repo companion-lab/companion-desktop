@@ -3,7 +3,7 @@ import { applyWindowSize, BASE_HEIGHT, BASE_WIDTH, type WindowSize } from "../wi
 import { SettingsLayout, type SettingsTab } from "./templates/SettingsLayout";
 import { DEFAULT_PERF, loadPerf, savePerf, type PerformanceConfig } from "../perf";
 // Plugin system: tabs/sections come from the contribution registry.
-import { useRegistryVersion, getTabs, getSectionsForTab, getTabOverride } from "../plugins/registry";
+import { useRegistryVersion, getTabs, getSectionsForTab, getTab, getTabOverride } from "../plugins/registry";
 import { SettingsStateProvider } from "../plugins/settings-context";
 import type { SettingsTabId } from "./templates/SettingsLayout";
 
@@ -136,6 +136,13 @@ function TabContent({ tabId }: { tabId: SettingsTabId }) {
   if (Override) {
     // Overriding components own their memoization (documented in the SDK).
     return <Override />;
+  }
+  // A tab that declared its own whole-tab body renders it directly; core
+  // tabs (and most plugins, mirroring mcp/vrm) are section-assembled and
+  // have no component, so they fall through to the ordered section list.
+  const TabBody = getTab(tabId)?.component;
+  if (TabBody) {
+    return <TabBody />;
   }
   const sections = getSectionsForTab(tabId);
   return (
