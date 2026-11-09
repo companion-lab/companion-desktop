@@ -14,6 +14,7 @@ import type { PluginInfo } from "./types";
 
 export function PluginsSection() {
   const [plugins, setPlugins] = useState<PluginInfo[] | null>(null);
+  const [query, setQuery] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -57,7 +58,10 @@ export function PluginsSection() {
       }
     });
     return () => {
-      void un.then((fn) => fn(), () => {});
+      void un.then(
+        (fn) => fn(),
+        () => {},
+      );
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -70,51 +74,60 @@ export function PluginsSection() {
     setTimeout(() => window.location.reload(), 100);
   }, []);
 
-  const toggle = useCallback(async (plugin: PluginInfo) => {
-    setBusy(plugin.id);
-    setError(null);
-    try {
-      const next = !plugin.enabled;
-      await invoke("plugin_set_enabled", { plugin_id: plugin.id, enabled: next });
-      // Apply the frontend change live: activate the bundle on enable, drop
-      // its contributions on disable. Backends keep running until reset.
-      if (next) {
-        if (plugin.hasFrontend) await enablePlugin(plugin.id, true);
-      } else {
-        disablePlugins([plugin.id]);
+  const toggle = useCallback(
+    async (plugin: PluginInfo) => {
+      setBusy(plugin.id);
+      setError(null);
+      try {
+        const next = !plugin.enabled;
+        await invoke("plugin_set_enabled", {
+          plugin_id: plugin.id,
+          enabled: next,
+        });
+        // Apply the frontend change live: activate the bundle on enable, drop
+        // its contributions on disable. Backends keep running until reset.
+        if (next) {
+          if (plugin.hasFrontend) await enablePlugin(plugin.id, true);
+        } else {
+          disablePlugins([plugin.id]);
+        }
+        await refresh();
+        setPendingRestart(true);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(null);
       }
-      await refresh();
-      setPendingRestart(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(null);
-    }
-  }, [refresh]);
+    },
+    [refresh],
+  );
 
-  const onImportFile = useCallback(async (file: File) => {
-    setImporting(true);
-    setError(null);
-    try {
-      // Send the raw bytes as the IPC request body instead of a base64 data
-      // URL: the JSON/base64 path multiplies a large package's memory several
-      // times over in the webview and dies with "Out of memory" on ~400 MB
-      // plugin zips.
-      const bytes = await file.arrayBuffer();
-      // Fire-and-forget on the Rust side: the command returns before the
-      // import finishes, and the plugins-changed event completes the flow
-      // (frontend activation + pending-restart flag).
-      importRef.current = true;
-      await invoke("plugin_import_archive", new Uint8Array(bytes));
-      await refresh();
-    } catch (e) {
-      importRef.current = false;
-      setImporting(false);
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  }, [refresh]);
+  const onImportFile = useCallback(
+    async (file: File) => {
+      setImporting(true);
+      setError(null);
+      try {
+        // Send the raw bytes as the IPC request body instead of a base64 data
+        // URL: the JSON/base64 path multiplies a large package's memory several
+        // times over in the webview and dies with "Out of memory" on ~400 MB
+        // plugin zips.
+        const bytes = await file.arrayBuffer();
+        // Fire-and-forget on the Rust side: the command returns before the
+        // import finishes, and the plugins-changed event completes the flow
+        // (frontend activation + pending-restart flag).
+        importRef.current = true;
+        await invoke("plugin_import_archive", new Uint8Array(bytes));
+        await refresh();
+      } catch (e) {
+        importRef.current = false;
+        setImporting(false);
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    },
+    [refresh],
+  );
 
   const confirmDelete = useCallback(async () => {
     if (!pendingDelete) return;
@@ -160,38 +173,26 @@ export function PluginsSection() {
     );
   }
 
+  // Search filter: match against the plugin's identity, description and
+  // permissions, case-insensitively. An empty/whitespace query lists all.
+  const q = query.trim().toLowerCase();
+  const filtered =
+    q === ""
+      ? plugins
+      : plugins.filter((p) =>
+          [p.id, p.name, p.description, ...p.permissions]
+            .join(" ")
+            .toLowerCase()
+            .includes(q),
+        );
+
   return (
     <SectionCard
       title="Plugins"
-      badge={`${plugins.length}`}
-      action={
-        <div className="st-plugins-actions">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".zip,application/zip"
-            style={{ display: "none" }}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void onImportFile(f);
-            }}
-          />
-          <Button
-            variant="primary"
-            disabled={importing}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {importing ? "Importing…" : "Import plugin…"}
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={restoring}
-            onClick={() => void restoreBundled()}
-            title="Reinstall any bundled features you uninstalled"
-          >
-            {restoring ? "Restoring…" : "Restore bundled features"}
-          </Button>
-        </div>
+      badge={
+        q !== ""
+          ? `${filtered.length} / ${plugins.length}`
+          : `${plugins.length}`
       }
     >
       {pendingRestart && (
@@ -206,37 +207,104 @@ export function PluginsSection() {
           </Button>
         </div>
       )}
-      {error && <p className="st-hint" style={{ color: "#e5484d" }}>{error}</p>}
+      {error && (
+        <p className="st-hint" style={{ color: "#e5484d" }}>
+          {error}
+        </p>
+      )}
+      {/* Toolbar: search beside the import/restore actions. Wraps on narrow
+          windows instead of cramming the card head. */}
+      <div className="st-plugins-toolbar">
+        {plugins.length > 0 && (
+          <div className="st-search">
+            <input
+              type="text"
+              value={query}
+              placeholder="Search plugins…"
+              aria-label="Search plugins"
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {query !== "" && (
+              <button
+                type="button"
+                className="st-search-clear"
+                aria-label="Clear search"
+                onClick={() => setQuery("")}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".zip,application/zip"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void onImportFile(f);
+          }}
+        />
+        <Button
+          variant="primary"
+          disabled={importing}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {importing ? "Importing…" : "Import plugin…"}
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={restoring}
+          onClick={() => void restoreBundled()}
+          title="Reinstall any bundled features you uninstalled"
+        >
+          {restoring ? "Restoring…" : "Restore bundled features"}
+        </Button>
+      </div>
       {plugins.length === 0 ? (
         <p className="st-hint">
           No plugins installed. Click <strong>Import plugin…</strong> to load a
           <code>.zip</code> plugin package, or drop one into the{" "}
           <code>plugins</code> folder in the app data directory and reload.
         </p>
+      ) : filtered.length === 0 ? (
+        <p className="st-hint">
+          No plugins match <strong>"{query.trim()}"</strong>.
+        </p>
       ) : (
         <div className="plugin-list">
-          {plugins.map((p) => (
+          {filtered.map((p) => (
             <div key={p.id} className="plugin-row">
               <div className="plugin-info">
                 <div className="plugin-title">
                   <span className="plugin-name">{p.name}</span>
                   <span className="plugin-version">v{p.version}</span>
                   {p.bundled && (
-                    <span className="st-card-badge" title="Ships with the app — can be restored after Delete">
+                    <span
+                      className="st-card-badge"
+                      title="Ships with the app — can be restored after Delete"
+                    >
                       bundled
                     </span>
                   )}
                   {p.hasBackend && (
-                    <span className={`st-card-badge${p.backendLoaded ? "" : " plugin-badge-warn"}`}>
+                    <span
+                      className={`st-card-badge${p.backendLoaded ? "" : " plugin-badge-warn"}`}
+                    >
                       {p.backendLoaded ? "backend loaded" : "backend off"}
                     </span>
                   )}
                 </div>
-                {p.description && <div className="plugin-desc">{p.description}</div>}
+                {p.description && (
+                  <div className="plugin-desc">{p.description}</div>
+                )}
                 {p.permissions.length > 0 && (
                   <div className="plugin-perms">
                     {p.permissions.map((perm) => (
-                      <span key={perm} className="plugin-perm">{perm}</span>
+                      <span key={perm} className="plugin-perm">
+                        {perm}
+                      </span>
                     ))}
                   </div>
                 )}
@@ -272,9 +340,9 @@ export function PluginsSection() {
       )}
       <p className="st-hint">
         Changes apply immediately in the open windows, so you can toggle or
-        remove several plugins before resetting. Fully unloading a Rust
-        backend needs an app restart. Imported plugins are copied into the app
-        data directory.
+        remove several plugins before resetting. Fully unloading a Rust backend
+        needs an app restart. Imported plugins are copied into the app data
+        directory.
       </p>
 
       {pendingDelete && (

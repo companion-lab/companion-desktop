@@ -574,13 +574,20 @@ body {
   text-transform: uppercase;
 }
 
-/* Plugins tab: header actions and the pending-changes banner (deferred reset) */
-.st-plugins-actions {
+/* Plugins tab: search + import/restore toolbar, and the pending-changes
+   banner (deferred reset) */
+.st-plugins-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  margin-bottom: 14px;
+}
+
+/* The search field flexes to fill the row; on narrow windows it wraps to
+   its own full-width line above the buttons. */
+.st-plugins-toolbar .st-search {
+  flex: 1 1 180px;
 }
 
 .st-plugins-pending {
@@ -1268,6 +1275,46 @@ button:disabled {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Plugin search (PluginsSection) */
+.st-search {
+  position: relative;
+}
+
+.st-search input {
+  padding-right: 34px !important;
+}
+
+.st-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.st-search-clear:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-primary);
+}
+
+.st-search-clear:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
 }
 
 /* Plugin manager (PluginsSection) */

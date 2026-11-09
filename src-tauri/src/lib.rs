@@ -91,6 +91,7 @@ pub fn run() {
             plugin_host::commands::plugin_delete,
             plugin_host::commands::plugin_restore_bundled,
             cursor_window_local,
+            cursor_global,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -277,6 +278,39 @@ fn cursor_window_local(app: tauri::AppHandle) -> Option<(f64, f64, f64, f64)> {
             }
 
             // Window-local top-left CSS coordinates (points == CSS px on macOS).
+            let local_x = mouse.x - frame.origin.x;
+            let local_y = (frame.origin.y + frame.size.height) - mouse.y;
+            Some((local_x, local_y, frame.size.width, frame.size.height))
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        None
+    }
+}
+
+/// Like cursor_window_local, but the coordinates are NOT clamped to the main
+/// window: (x, y) is relative to the window's top-left and may be negative or
+/// beyond the window size when the cursor is outside it (e.g. on another
+/// display). Callers that need to distinguish "outside the window" must check
+/// the bounds themselves — cursor_window_local keeps its None-outside contract
+/// for the click-through probe.
+#[tauri::command]
+fn cursor_global(app: tauri::AppHandle) -> Option<(f64, f64, f64, f64)> {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::msg_send;
+        use objc2_foundation::{NSPoint, NSRect};
+
+        let win = app.get_webview_window("main")?;
+        unsafe {
+            let ns_window = win.ns_window().ok()? as *mut objc2::runtime::AnyObject;
+            let frame: NSRect = msg_send![ns_window, frame];
+            let mouse: NSPoint = msg_send![objc2::class!(NSEvent), mouseLocation];
+
+            // Window-relative top-left CSS coordinates, unclamped (points ==
+            // CSS px on macOS). Cocoa: bottom-left origin.
             let local_x = mouse.x - frame.origin.x;
             let local_y = (frame.origin.y + frame.size.height) - mouse.y;
             Some((local_x, local_y, frame.size.width, frame.size.height))
