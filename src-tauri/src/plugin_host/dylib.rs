@@ -40,6 +40,10 @@ unsafe impl Sync for InstancePtr {}
 /// the live instance, and the host bridge (kept alive).
 pub struct BackendInstance {
     _lib: Library,
+    /// Sidecar shared libraries staged + pre-loaded from the package (kept
+    /// alive alongside the backend: on Windows the backend's import table
+    /// resolves against these modules).
+    _sidecars: Vec<Library>,
     vtable: VTable,
     instance: InstancePtr,
     _bridge: super::bridge::BridgeHandle,
@@ -96,6 +100,59 @@ fn resolve_library_path(primary: &Path, plugin_id: &str) -> Result<PathBuf, Stri
     Err(format!("no library found in {}", dir.display()))
 }
 
+/// Copy the shared-library sidecars the plugin package ships next to the
+/// copied cdylib so the backend's dynamic dependencies resolve at load
+/// time. Windows packages may carry `*.dll` (stt's `onnxruntime.dll`),
+/// Linux packages `lib*.so*`; macOS backends statically embed everything,
+/// so nothing matches there. Returns the staged file names. The backend's
+/// own library is never counted as its own sidecar.
+///
+/// Note: import resolution is by image module name, so two plugins shipping
+/// different versions of the same DLL would collide (first load wins).
+/// Only stt ships a sidecar today.
+fn stage_sidecars(library_path: &Path, load_dir: &Path) -> Result<Vec<String>, String> {
+    let pkg_dir = library_path
+        .parent()
+        .ok_or_else(|| format!("library has no parent dir: {}", library_path.display()))?;
+    let backend_file = library_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default()
+        .to_string();
+    let mut staged = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for dir in [pkg_dir, &pkg_dir.join("assets")] {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let Some(name) = entry.file_name().into_string().ok() else {
+                continue;
+            };
+            if !is_sidecar_name(&name) || name == backend_file || !seen.insert(name.clone()) {
+                continue;
+            }
+            std::fs::copy(entry.path(), load_dir.join(&name))
+                .map_err(|e| format!("copy sidecar {name} failed: {e}"))?;
+            staged.push(name.to_string());
+        }
+    }
+    Ok(staged)
+}
+
+/// What a shipped sidecar shared library looks like on this platform. Pure
+/// std-string logic, so this compiles identically on every target.
+fn is_sidecar_name(name: &str) -> bool {
+    if cfg!(windows) {
+        name.to_ascii_lowercase().ends_with(".dll")
+    } else if cfg!(target_os = "linux") {
+        name.starts_with("lib") && name.contains(".so")
+    } else {
+        // macOS backends statically embed their dependencies.
+        false
+    }
+}
+
 impl BackendInstance {
     /// Load `library`, create the plugin instance with a host bridge bound to
     /// `plugin_id`, `data_dir`, and `plugin_dir`.
@@ -134,6 +191,23 @@ impl BackendInstance {
         let load_path = unique_dir.join(unique_name);
         std::fs::copy(&path, &load_path)
             .map_err(|e| format!("copy backend library failed: {e}"))?;
+        // A package may ship dynamic sidecar libraries next to its backend
+        // (e.g. stt on Windows/Linux: Moonshine's shared library / ONNX
+        // Runtime riding along in assets/). Stage them next to the copy so
+        // the loader finds them: Linux resolves through the cdylib's own
+        // `RUNPATH=$ORIGIN`; Windows resolves import-table references
+        // against already-loaded modules, so each sidecar is pre-loaded by
+        // absolute path before the backend itself.
+        let staged_sidecars = stage_sidecars(&path, &unique_dir)
+            .map_err(|e| format!("stage sidecar libraries failed: {e}"))?;
+        let mut sidecar_libs = Vec::new();
+        if cfg!(windows) {
+            for name in &staged_sidecars {
+                let lib = unsafe { Library::new(unique_dir.join(name)) }
+                    .map_err(|e| format!("load sidecar library {name} failed: {e}"))?;
+                sidecar_libs.push(lib);
+            }
+        }
         let lib = unsafe { Library::new(&load_path) }.map_err(|e| format!("load failed: {e}"))?;
 
         let abi: libloading::Symbol<AbiFn> =
@@ -192,6 +266,7 @@ impl BackendInstance {
         };
         Ok(BackendInstance {
             _lib: lib,
+            _sidecars: sidecar_libs,
             vtable,
             instance: InstancePtr(instance),
             _bridge: bridge_state,
