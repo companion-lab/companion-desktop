@@ -275,7 +275,10 @@ export function PluginsSection() {
       ) : (
         <div className="plugin-list">
           {filtered.map((p) => (
-            <div key={p.id} className="plugin-row">
+            <div
+              key={p.id}
+              className={`plugin-row${p.enabled ? "" : " plugin-row-disabled"}`}
+            >
               <div className="plugin-info">
                 <div className="plugin-title">
                   <span className="plugin-name">{p.name}</span>
