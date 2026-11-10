@@ -58,6 +58,7 @@ jobs:
           - os: ubuntu-22.04
             platform: linux-x86_64
             plugins: "alarms calendar chat mcp stt tts vrm"
+            tauri_args: "--bundles deb,appimage"
           - os: windows-latest
             platform: windows-x86_64
             plugins: "alarms calendar chat mcp stt tts vrm"
@@ -154,12 +155,7 @@ jobs:
           node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(p,'utf8'));c.version=process.env.VERSION.replace(/^v/, '');fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n')"
 
       - name: Build the app
-        run: |
-          if [ "$RUNNER_OS" = "Linux" ]; then
-            pnpm tauri build --bundles deb,appimage
-          else
-            pnpm tauri build
-          fi
+        run: pnpm tauri build ${{ matrix.tauri_args }}
 
       # One zip per platform, installers flat at its root:
       #   macos-arm64 -> .dmg | windows-x86_64 -> .msi + setup .exe
