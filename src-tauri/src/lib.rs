@@ -1,6 +1,7 @@
 #![allow(unexpected_cfgs)]
 
 mod plugin_host;
+mod updater;
 
 use tauri::{Manager, WindowEvent};
 
@@ -12,6 +13,10 @@ pub fn run() {
         // plugin's mic toggle) through the JS API — the host only provides the
         // plugin and the capability permissions, no fixed handler.
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        // Update flow: opens the downloaded installer / release page with the
+        // OS handler. Called from updater's Rust commands only, so no
+        // capability permissions are needed for it.
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // Show the main window before any plugin work: its webview page
             // is already loading, so first visibility shouldn't wait on
@@ -77,6 +82,10 @@ pub fn run() {
             restart_app,
             quit_app,
             open_devtools,
+            updater::check_for_update,
+            updater::download_update,
+            updater::open_update_installer,
+            updater::open_url,
             secret_set,
             secret_get,
             secret_delete,
@@ -251,12 +260,14 @@ fn join_all_spaces(win: &tauri::WebviewWindow) {
     }
 }
 
-/// Returns the cursor position in window-local CSS coordinates, or None if the
-/// cursor is outside the main window. Computed entirely in Rust using the
-/// NSWindow frame, avoiding Tauri's (buggy on secondary monitors) coordinate
-/// conversion between outerPosition() and cursorPosition().
-#[tauri::command]
-fn cursor_window_local(app: tauri::AppHandle) -> Option<(f64, f64, f64, f64)> {
+/// Shared probe behind both cursor commands: the cursor position in
+/// window-relative CSS coordinates (top-left origin) plus the window's CSS
+/// size. (x, y) is NOT clamped to the window — it may be negative or beyond
+/// the size when the cursor is outside it, even on another display. None
+/// means no reading is available: probe failure or an unsupported
+/// platform/session (Wayland).
+#[allow(clippy::too_many_lines)]
+fn cursor_css_unclamped(app: &tauri::AppHandle) -> Option<(f64, f64, f64, f64)> {
     #[cfg(target_os = "macos")]
     {
         use objc2::msg_send;
@@ -268,24 +279,177 @@ fn cursor_window_local(app: tauri::AppHandle) -> Option<(f64, f64, f64, f64)> {
             let frame: NSRect = msg_send![ns_window, frame];
             let mouse: NSPoint = msg_send![objc2::class!(NSEvent), mouseLocation];
 
-            // Cursor outside the window frame (Cocoa: bottom-left origin).
-            if mouse.x < frame.origin.x
-                || mouse.x > frame.origin.x + frame.size.width
-                || mouse.y < frame.origin.y
-                || mouse.y > frame.origin.y + frame.size.height
-            {
-                return None;
-            }
-
-            // Window-local top-left CSS coordinates (points == CSS px on macOS).
+            // Window-relative top-left CSS coordinates (points == CSS px on
+            // macOS). Cocoa: bottom-left origin.
             let local_x = mouse.x - frame.origin.x;
             let local_y = (frame.origin.y + frame.size.height) - mouse.y;
             Some((local_x, local_y, frame.size.width, frame.size.height))
         }
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+        #[repr(C)]
+        struct WinPoint {
+            x: i32,
+            y: i32,
+        }
+        #[repr(C)]
+        struct WinRect {
+            left: i32,
+            top: i32,
+            right: i32,
+            bottom: i32,
+        }
+        #[link(name = "user32")]
+        extern "system" {
+            fn GetCursorPos(lp_point: *mut WinPoint) -> i32;
+            fn GetWindowRect(hwnd: *mut std::ffi::c_void, lp_rect: *mut WinRect) -> i32;
+        }
+
+        let win = app.get_webview_window("main")?;
+        let hwnd = match win.window_handle().ok()?.as_raw() {
+            RawWindowHandle::Win32(h) => h.hwnd.get() as *mut std::ffi::c_void,
+            _ => return None,
+        };
+        unsafe {
+            let mut cursor = WinPoint { x: 0, y: 0 };
+            let mut rect = WinRect {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            };
+            if GetCursorPos(&mut cursor) == 0 || GetWindowRect(hwnd, &mut rect) == 0 {
+                return None;
+            }
+            // Tauri is per-monitor DPI aware (tao opts in at startup), so
+            // GetCursorPos/GetWindowRect report physical pixels; CSS px is
+            // physical / scale. For the undecorated window the client area is
+            // the whole window rect and the webview fills it, so the rect's
+            // top-left is CSS (0, 0).
+            let scale = win.scale_factor().ok()?;
+            if scale <= 0.0 {
+                return None;
+            }
+            Some((
+                (cursor.x - rect.left) as f64 / scale,
+                (cursor.y - rect.top) as f64 / scale,
+                (rect.right - rect.left) as f64 / scale,
+                (rect.bottom - rect.top) as f64 / scale,
+            ))
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+        use std::os::raw::c_ulong;
+
+        // Wayland exposes no global cursor position to regular clients
+        // (wl_pointer only speaks in per-surface positions), and XWayland's X
+        // cursor goes stale while the pointer is over native Wayland windows:
+        // report None instead of coordinates that freeze the gaze at a stale
+        // point.
+        if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+            return None;
+        }
+
+        let win = app.get_webview_window("main")?;
+        // XID of the GTK toplevel: it is the webview's client area, its origin
+        // maps to CSS (0, 0). GTK on X11 yields an Xlib window; Xcb as an
+        // equally valid fallback.
+        let xid = match win.window_handle().ok()?.as_raw() {
+            RawWindowHandle::Xlib(h) => h.window,
+            RawWindowHandle::Xcb(h) => h.window.get() as c_ulong,
+            _ => return None,
+        };
+
+        // x11-dl dlopens libX11 at runtime, so a session without it (or
+        // without the client library) just reports None.
+        let xlib = match x11_dl::xlib::Xlib::open() {
+            Ok(xlib) => xlib,
+            Err(_) => return None,
+        };
+        unsafe {
+            let display = (xlib.XOpenDisplay)(std::ptr::null_mut());
+            if display.is_null() {
+                return None;
+            }
+
+            // The default screen's root spans every monitor (RandR), so root
+            // coordinates are global across displays — the same notion of
+            // "global" the other platforms read.
+            let root = (xlib.XDefaultRootWindow)(display);
+            let mut cursor_root = (0i32, 0i32);
+            let mut win_local = (0i32, 0i32);
+            let mut root_return: c_ulong = 0;
+            let mut child_return: c_ulong = 0;
+            let mut mask = 0u32;
+            let on_screen = (xlib.XQueryPointer)(
+                display,
+                root,
+                &mut root_return,
+                &mut child_return,
+                &mut cursor_root.0,
+                &mut cursor_root.1,
+                &mut win_local.0,
+                &mut win_local.1,
+                &mut mask,
+            ) != 0;
+            let mut win_origin = (0i32, 0i32);
+            let mut dest_child: c_ulong = 0;
+            (xlib.XTranslateCoordinates)(
+                display,
+                xid,
+                root,
+                0,
+                0,
+                &mut win_origin.0,
+                &mut win_origin.1,
+                &mut dest_child,
+            );
+            let mut attrs = std::mem::zeroed::<x11_dl::xlib::XWindowAttributes>();
+            let sized = (xlib.XGetWindowAttributes)(display, xid, &mut attrs) != 0;
+            (xlib.XCloseDisplay)(display);
+            if !on_screen || !sized {
+                return None;
+            }
+
+            // X pixels are physical; CSS px is physical / scale (also covers
+            // the integer GDK scale typical on X11; anything else is rare and
+            // GTK itself is no better there).
+            let scale = win.scale_factor().ok()?;
+            if scale <= 0.0 {
+                return None;
+            }
+            Some((
+                (cursor_root.0 - win_origin.0) as f64 / scale,
+                (cursor_root.1 - win_origin.1) as f64 / scale,
+                attrs.width as f64 / scale,
+                attrs.height as f64 / scale,
+            ))
+        }
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
         let _ = app;
+        None
+    }
+}
+
+/// Returns the cursor position in window-local CSS coordinates, or None if the
+/// cursor is outside the main window. Computed entirely in Rust using the
+/// window's native frame, avoiding Tauri's (buggy on secondary monitors)
+/// coordinate conversion between outerPosition() and cursorPosition(). Shares
+/// the probe with cursor_global; only the None-outside contract is kept here
+/// for the click-through check.
+#[tauri::command]
+fn cursor_window_local(app: tauri::AppHandle) -> Option<(f64, f64, f64, f64)> {
+    let (x, y, w, h) = cursor_css_unclamped(&app)?;
+    if x >= 0.0 && y >= 0.0 && x < w && y < h {
+        Some((x, y, w, h))
+    } else {
         None
     }
 }
@@ -298,27 +462,5 @@ fn cursor_window_local(app: tauri::AppHandle) -> Option<(f64, f64, f64, f64)> {
 /// for the click-through probe.
 #[tauri::command]
 fn cursor_global(app: tauri::AppHandle) -> Option<(f64, f64, f64, f64)> {
-    #[cfg(target_os = "macos")]
-    {
-        use objc2::msg_send;
-        use objc2_foundation::{NSPoint, NSRect};
-
-        let win = app.get_webview_window("main")?;
-        unsafe {
-            let ns_window = win.ns_window().ok()? as *mut objc2::runtime::AnyObject;
-            let frame: NSRect = msg_send![ns_window, frame];
-            let mouse: NSPoint = msg_send![objc2::class!(NSEvent), mouseLocation];
-
-            // Window-relative top-left CSS coordinates, unclamped (points ==
-            // CSS px on macOS). Cocoa: bottom-left origin.
-            let local_x = mouse.x - frame.origin.x;
-            let local_y = (frame.origin.y + frame.size.height) - mouse.y;
-            Some((local_x, local_y, frame.size.width, frame.size.height))
-        }
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = app;
-        None
-    }
+    cursor_css_unclamped(&app)
 }

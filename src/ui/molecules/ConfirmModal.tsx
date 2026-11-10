@@ -6,12 +6,23 @@ type Props = {
   title: string;
   message: string;
   confirmLabel?: string;
+  /** Button style for the confirm action; the destructive default suits most
+   *  uses (delete/import), install-style confirms pick "primary". */
+  confirmVariant?: "primary" | "danger";
   busy?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 };
 
-export function ConfirmModal({ title, message, confirmLabel = "Delete", busy, onConfirm, onClose }: Props) {
+export function ConfirmModal({
+  title,
+  message,
+  confirmLabel = "Delete",
+  confirmVariant = "danger",
+  busy,
+  onConfirm,
+  onClose,
+}: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !busy) onClose();
@@ -40,7 +51,7 @@ export function ConfirmModal({ title, message, confirmLabel = "Delete", busy, on
           <Button variant="secondary" onClick={onClose} disabled={busy} autoFocus>
             Cancel
           </Button>
-          <Button variant="danger" onClick={onConfirm} disabled={busy} className={busy ? "is-busy" : ""}>
+          <Button variant={confirmVariant} onClick={onConfirm} disabled={busy} className={busy ? "is-busy" : ""}>
             {confirmLabel}
           </Button>
         </div>
