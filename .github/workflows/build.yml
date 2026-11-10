@@ -154,7 +154,12 @@ jobs:
           node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(p,'utf8'));c.version=process.env.VERSION.replace(/^v/, '');fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n')"
 
       - name: Build the app
-        run: pnpm tauri build
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            pnpm tauri build -- --bundles deb,appimage
+          else
+            pnpm tauri build
+          fi
 
       # One zip per platform, installers flat at its root:
       #   macos-arm64 -> .dmg | windows-x86_64 -> .msi + setup .exe
