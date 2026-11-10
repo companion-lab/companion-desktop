@@ -66,6 +66,15 @@ jobs:
             # until upstream publishes one (then it is bundled automatically).
             optional_plugins: "stt"
     runs-on: ${{ matrix.os }}
+    # Developer ID + notarization credentials for the macOS leg. Each is
+    # optional: if any is unset the macOS build falls back to the ad-hoc
+    # signingIdentity from tauri.conf.json, same as the pre-signing builds.
+    env:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_KEY_PATH_B64: ${{ secrets.APPLE_API_KEY_PATH }}
     steps:
       - uses: actions/checkout@v4
 
@@ -154,8 +163,46 @@ jobs:
         run: |
           node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(p,'utf8'));c.version=process.env.VERSION.replace(/^v/, '');fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n')"
 
+      # macOS Developer ID signing + notarization (hardened runtime is on by
+      # default in Tauri v2). The bundler reads APPLE_CERTIFICATE /
+      # APPLE_CERTIFICATE_PASSWORD and builds its own temporary keychain from
+      # the p12 — no manual keychain import here — then signs during the
+      # build; APPLE_API_* make it notarize + staple in the same run. When the
+      # secrets are not configured, the plain build below keeps the ad-hoc
+      # signingIdentity from tauri.conf.json ("-").
+      - name: Write App Store Connect API key
+        if: env.APPLE_API_KEY_PATH_B64 != ''
+        env:
+          APPLE_API_KEY_PATH_B64: ${{ secrets.APPLE_API_KEY_PATH }}
+        run: |
+          set -euo pipefail
+          path="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s' "$APPLE_API_KEY_PATH_B64" | base64 --decode > "$path"
+          echo "APPLE_API_KEY_PATH=$path" >> "$GITHUB_ENV"
+          echo "wrote API key ($(wc -c < "$path") bytes)"
+
       - name: Build the app
+        if: runner.os != 'MacOS' || env.APPLE_CERTIFICATE == ''
         run: pnpm tauri build ${{ matrix.tauri_args }}
+
+      - name: Build the app (Developer ID signed + notarized)
+        if: runner.os == 'MacOS' && env.APPLE_CERTIFICATE != ''
+        run: >-
+          pnpm tauri build
+          --config '{"bundle":{"macOS":{"signingIdentity":"Developer ID Application"}}}'
+          ${{ matrix.tauri_args }}
+
+      - name: Verify macOS signing
+        if: runner.os == 'MacOS' && env.APPLE_CERTIFICATE != ''
+        run: |
+          set -euo pipefail
+          app_path="src-tauri/target/release/bundle/macos/companion.app"
+          codesign --verify --strict --verbose=2 "$app_path"
+          # The bundler notarizes and staples synchronously inside the build,
+          # so Gatekeeper must accept the app here and now.
+          spctl --assess --type exec -vv "$app_path" 2>&1
+          spctl --assess --type exec -vv "$app_path" 2>&1 | grep -q 'accepted' \
+            || { echo "::error::macOS app is not Gatekeeper-accepted"; exit 1; }
 
       # One zip per platform, installers flat at its root:
       #   macos-arm64 -> .dmg | windows-x86_64 -> .msi + setup .exe
