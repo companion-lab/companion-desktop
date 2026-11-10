@@ -156,7 +156,7 @@ jobs:
       - name: Build the app
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
-            pnpm tauri build -- --bundles deb,appimage
+            pnpm tauri build --bundles deb,appimage
           else
             pnpm tauri build
           fi
