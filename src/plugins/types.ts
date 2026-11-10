@@ -255,7 +255,9 @@ export type SttProvider = {
 
 /** Host service registry access: publish or consume capability providers. */
 export type ServicesSurface = {
-  registerTts: (provider: TtsProvider) => void;
+  /** Publish the TTS provider. Registering null hands a previously taken
+   *  slot back to the provider underneath (takeover stack). */
+  registerTts: (provider: TtsProvider | null) => void;
   registerStt: (provider: SttProvider) => void;
   /** Active TTS provider; a silent no-op when no voice plugin is installed. */
   tts: () => TtsProvider;

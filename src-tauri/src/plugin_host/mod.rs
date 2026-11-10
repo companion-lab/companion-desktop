@@ -97,7 +97,7 @@ const CHANGED_EVENT: &str = "plugins-changed";
 /// Bundled feature plugins ship here inside the app resources and are seeded
 /// into `{app_data}/plugins/` on startup (unless tombstoned by uninstall).
 const BUNDLED_RESOURCE_DIR: &str = "plugins";
-/// The six feature plugins that ship with the app. Used to distinguish
+/// The feature plugins that ship with the app. Used to distinguish
 /// bundled packages from third-party installs in dev builds (where the
 /// discovery dir doubles as the bundled source dir).
 const BUNDLED_IDS: &[&str] = &["alarms", "calendar", "chat", "mcp", "stt", "tts", "vrm"];
@@ -184,36 +184,36 @@ pub fn init_state(app: &AppHandle) -> PluginHostState {
     }
 }
 
-/// Where bundled feature packages ship: `{resource_dir}/plugins/`. In dev
-/// builds the resource dir may not carry them (the repo `plugins/` folder is
-/// used instead), so a missing dir means "no bundled source".
+/// Where bundled feature packages ship. Tauri v2 preserves the
+/// config-relative path for `bundle.resources`, so the `"resources"` entry
+/// lands the packages at `<resource_dir>/resources/plugins` (macOS:
+/// `Contents/Resources/resources/plugins`, Linux deb: `/usr/lib/companion/resources/plugins`,
+/// Windows: `<install_dir>/resources/plugins`). In dev builds the resource
+/// dir does not carry them (the repo `plugins/` folder is used instead), so
+/// a missing dir means "no bundled source".
 fn bundled_source_dir(app: &AppHandle) -> Option<PathBuf> {
-    // 1. Tauri resource dir (release builds, if resources are bundled).
+    // 1. Tauri resource dir (release builds, if resources are bundled) and
+    //    the executable directory, probing the nested `resources/` layout
+    //    first, then a direct `plugins/` sibling for other layouts.
+    let mut candidates = Vec::new();
     if let Ok(dir) = app.path().resource_dir() {
-        let cand = dir.join(BUNDLED_RESOURCE_DIR);
-        if cand.is_dir() {
-            return Some(cand);
-        }
-        // macOS .app bundle: Resources/plugins/
-        let cand = dir.join("..").join("Resources").join(BUNDLED_RESOURCE_DIR);
-        if cand.is_dir() {
-            return Some(cand);
-        }
+        candidates.push(dir.join("resources").join(BUNDLED_RESOURCE_DIR));
+        candidates.push(dir.join(BUNDLED_RESOURCE_DIR));
     }
-    // 2. Next to the executable (Windows/Linux release, or dev).
+    // Next to the executable (Windows installs keep resources beside it).
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            for cand in [
-                dir.join(BUNDLED_RESOURCE_DIR),
-                dir.join("..").join(BUNDLED_RESOURCE_DIR),
-            ] {
-                if cand.is_dir() {
-                    return Some(cand);
-                }
-            }
+            candidates.push(dir.join("resources").join(BUNDLED_RESOURCE_DIR));
+            candidates.push(dir.join(BUNDLED_RESOURCE_DIR));
+            candidates.push(dir.join("..").join(BUNDLED_RESOURCE_DIR));
         }
     }
-    // 3. Dev builds: the repo-root plugins/ dir (also the dev discovery root).
+    for cand in candidates {
+        if cand.is_dir() {
+            return Some(cand);
+        }
+    }
+    // 2. Dev builds: the repo-root plugins/ dir (also the dev discovery root).
     #[cfg(debug_assertions)]
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
         let dev = std::path::PathBuf::from(manifest_dir)

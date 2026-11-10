@@ -204,6 +204,44 @@ jobs:
           spctl --assess --type exec -vv "$app_path" 2>&1 | grep -q 'accepted' \
             || { echo "::error::macOS app is not Gatekeeper-accepted"; exit 1; }
 
+      # The bundled plugins must actually ship inside the produced installers:
+      # Tauri preserves the config-relative path, so bundle.resources
+      # ["resources"] lands them at <resource_dir>/resources/plugins
+      # (macOS Contents/Resources/resources/plugins, deb
+      # /usr/lib/companion/resources/plugins). A missing package here would
+      # mean first installs boot with no default features.
+      # Windows is not verified: NSIS/MSI contents cannot be listed reliably
+      # here; the download step already verifies the staging dir the bundler
+      # packs, and the resource layout is the same mechanism as macOS/deb.
+      - name: Verify bundled plugins in the built artifacts
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          PLUGINS: ${{ matrix.plugins }}
+          OPTIONAL_PLUGINS: ${{ matrix.optional_plugins }}
+        run: |
+          set -euo pipefail
+          case "$RUNNER_OS" in
+            MacOS)
+              root="src-tauri/target/release/bundle/macos/companion.app/Contents/Resources/resources/plugins"
+              ;;
+            Linux)
+              deb=$(ls src-tauri/target/release/bundle/deb/*.deb)
+              dpkg-deb -x "$deb" deb-root
+              root="deb-root/usr/lib/companion/resources/plugins"
+              ;;
+            *)
+              echo "::error::unexpected runner os '$RUNNER_OS'"; exit 1 ;;
+          esac
+          for plugin in $PLUGINS; do
+            if printf '%s' "$OPTIONAL_PLUGINS" | grep -qw "$plugin"; then
+              continue
+            fi
+            [ -f "$root/$plugin/manifest.json" ] \
+              || { echo "::error::built artifact is missing bundled plugin '$plugin' (expected $root/$plugin/manifest.json)"; exit 1; }
+            echo "artifact contains bundled plugin: $plugin"
+          done
+
       # One zip per platform, installers flat at its root:
       #   macos-arm64 -> .dmg | windows-x86_64 -> .msi + setup .exe
       #   linux-x86_64 -> .deb + .rpm + .AppImage
