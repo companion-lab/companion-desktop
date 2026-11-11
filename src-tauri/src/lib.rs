@@ -125,25 +125,25 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
 /// Create the settings webview. Called hidden at startup to warm the page and
 /// on demand if the window was never created or got destroyed.
 fn build_settings_window(app: &tauri::AppHandle, visible: bool) -> Result<(), String> {
-    let is_dev = cfg!(debug_assertions) && app.config().build.dev_url.is_some();
-    let url = if is_dev {
-        let dev_url = app.config().build.dev_url.as_ref().unwrap();
-        let base = dev_url.to_string().trim_end_matches('/').to_string();
-        tauri::WebviewUrl::External(format!("{base}/settings.html").parse().map_err(|e: url::ParseError| e.to_string())?)
-    } else {
-        tauri::WebviewUrl::App("settings.html".into())
-    };
-
-    tauri::WebviewWindowBuilder::new(app, "settings", url)
-        .title("Settings")
-        .inner_size(780.0, 580.0)
-        .min_inner_size(780.0, 580.0)
-        .max_inner_size(780.0, 580.0)
-        .resizable(false)
-        .decorations(true)
-        .visible(visible)
-        .build()
-        .map_err(|e| e.to_string())?;
+    // WebviewUrl::App resolves per runtime mode — the dev server under
+    // `tauri dev` (custom-protocol feature off), the embedded frontendDist in
+    // built bundles (feature on). A manual dev_url check here would send
+    // every bundled debug build to the not-running dev server: a blank
+    // window.
+    tauri::WebviewWindowBuilder::new(
+        app,
+        "settings",
+        tauri::WebviewUrl::App("settings.html".into()),
+    )
+    .title("Settings")
+    .inner_size(780.0, 580.0)
+    .min_inner_size(780.0, 580.0)
+    .max_inner_size(780.0, 580.0)
+    .resizable(false)
+    .decorations(true)
+    .visible(visible)
+    .build()
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }

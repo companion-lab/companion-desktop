@@ -4,8 +4,8 @@
 //
 // Every feature menu now lives with its owning plugin: the vrm plugin owns
 // the Model / Motion & Emotion / Graphics tabs AND the idle-mixer section
-// (its engine owns the mixer), voice owns Voice + Connection (STT/TTS
-// sections; the chat plugin's api section renders there too), and
+// (its engine owns the mixer), chat owns Connection (its api card plus the
+// stt/tts cloud endpoint sections render there keyed by tabId), and
 // mcp/alarms/calendar own their name-sake tabs. Core keeps only the tabs
 // that are genuinely host-level:
 //
