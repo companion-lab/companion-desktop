@@ -193,6 +193,7 @@ jobs:
             if [ -z "${!var:-}" ]; then unset "$var"; fi
           done
           pnpm tauri build ${{ matrix.tauri_args }}
+        shell: bash
 
       # Runner-side failures (OOM/disk) show up as a bare "exit code 1" in the
       # annotations; dump the machine state into the job summary, which is
@@ -253,7 +254,8 @@ jobs:
         run: |
           set -euo pipefail
           case "$RUNNER_OS" in
-            MacOS)
+            # GitHub's RUNNER_OS spells macOS with a lowercase "a".
+            macOS|MacOS)
               root="src-tauri/target/release/bundle/macos/companion.app/Contents/Resources/resources/plugins"
               ;;
             Linux)
