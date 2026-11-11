@@ -4,11 +4,20 @@
 
 import { emit as tauriEmit, listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { LogicalPosition } from "@tauri-apps/api/dpi";
 import * as ui from "../ui";
 import { avatarBus, setAvatarHandlers } from "../avatar-bus";
 import { registerSttProvider, registerTtsProvider } from "../services/registry";
 import { sttProvider } from "../services/stt";
 import { ttsProvider } from "../services/tts";
+import { applyWindowSize } from "../window-size";
+import {
+  getMainWindow,
+  mainWindowLogicalPosition,
+  mainWindowLogicalSize,
+  setClickThroughOverride,
+  snapToAnchor,
+} from "../window-control";
 import {
   registerContextMenuItem,
   registerSection,
@@ -21,10 +30,12 @@ import {
   overrideWidget,
 } from "./registry";
 import type {
+  LogicalSizeLike,
   PluginContext,
   SettingsTabContribution,
   ToolContribution,
   UiExports,
+  WindowSurface,
 } from "./types";
 
 // Re-exported so plugins can keep importing icons/helpers they registered.
@@ -44,7 +55,110 @@ function secretAccount(pluginId: string, name: string): string {
   return `${pluginId}:${name}`;
 }
 
-export function createPluginContext(pluginId: string): PluginContext {
+/** The live runtime surface behind `ctx.window`. Routes to the main window
+ *  from any webview; reuses applyWindowSize for the GTK min-size dance. */
+function buildWindowSurface(): WindowSurface {
+  // Window events deliver physical px without a scale attached, so convert
+  // with the main window's current scale factor.
+  const mainScale = async (): Promise<number> => {
+    const win = await getMainWindow();
+    return (win ? await win.scaleFactor() : 1) || 1;
+  };
+  const listenMain = async (
+    event: "tauri://move" | "tauri://resize",
+    handler: (e: { payload: unknown }) => void,
+  ): Promise<() => void> => {
+    const win = await getMainWindow();
+    if (!win) return () => {};
+    return win.listen(event, handler);
+  };
+  return {
+    getSize: () => mainWindowLogicalSize(),
+    setSize: async (size: LogicalSizeLike) => {
+      await applyWindowSize(size);
+    },
+    getPosition: () => mainWindowLogicalPosition(),
+    setPosition: async (pos) => {
+      if (typeof pos === "string") {
+        await snapToAnchor(pos);
+        return;
+      }
+      const win = await getMainWindow();
+      if (!win) return;
+      await win.setPosition(new LogicalPosition(pos.x, pos.y));
+    },
+    setAlwaysOnTop: async (on) => {
+      const win = await getMainWindow();
+      if (win) await win.setAlwaysOnTop(on);
+    },
+    setClickThrough: (on) => {
+      setClickThroughOverride(on);
+    },
+    onMoved: (cb) => {
+      let unlisten: (() => void) | null = null;
+      let disposed = false;
+      void listenMain("tauri://move", (e) => {
+        const pos = e.payload as { x: number; y: number };
+        void mainScale().then((scale) => {
+          if (!disposed) cb({ x: pos.x / scale, y: pos.y / scale });
+        });
+      })
+        .then((fn) => {
+          if (disposed) fn();
+          else unlisten = fn;
+        })
+        .catch((err) => console.warn("[window] onMoved listen failed", err));
+      return () => {
+        disposed = true;
+        unlisten?.();
+      };
+    },
+    onResized: (cb) => {
+      let unlisten: (() => void) | null = null;
+      let disposed = false;
+      void listenMain("tauri://resize", (e) => {
+        // Resize payloads are PhysicalSize {width, height}, not {x, y}.
+        const size = e.payload as { width: number; height: number };
+        void mainScale().then((scale) => {
+          if (!disposed) cb({ width: size.width / scale, height: size.height / scale });
+        });
+      })
+        .then((fn) => {
+          if (disposed) fn();
+          else unlisten = fn;
+        })
+        .catch((err) => console.warn("[window] onResized listen failed", err));
+      return () => {
+        disposed = true;
+        unlisten?.();
+      };
+    },
+  };
+}
+
+/** Throwing stubs for plugins without the "window" permission — always
+ *  present so the failure is a clear error, not an undefined access. */
+function forbiddenWindowSurface(pluginId: string): WindowSurface {
+  const msg = `[plugin:${pluginId}] ctx.window requires the "window" permission in manifest.json`;
+  const deny = () => {
+    throw new Error(msg);
+  };
+  return {
+    getSize: deny,
+    setSize: deny,
+    getPosition: deny,
+    setPosition: deny,
+    setAlwaysOnTop: deny,
+    setClickThrough: deny,
+    onMoved: deny,
+    onResized: deny,
+  };
+}
+
+export function createPluginContext(
+  pluginId: string,
+  permissions: string[] = [],
+): PluginContext {
   return {
     id: pluginId,
     log: prefixLog(pluginId),
@@ -115,6 +229,10 @@ export function createPluginContext(pluginId: string): PluginContext {
         await invoke("plugin_storage_set", { plugin_id: pluginId, key, value: null });
       },
     },
+
+    window: permissions.includes("window")
+      ? buildWindowSurface()
+      : forbiddenWindowSurface(pluginId),
 
     avatar: {
       setEmotion: (name) => avatarBus().setEmotion(name),

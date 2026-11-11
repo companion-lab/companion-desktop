@@ -4,6 +4,7 @@
 
 import { createContext, useContext } from "react";
 import type { PerformanceConfig } from "../perf";
+import type { WindowPrefs } from "../events";
 import type { WindowSize } from "../window-size";
 
 export type SettingsPageState = {
@@ -12,6 +13,9 @@ export type SettingsPageState = {
   setPerf: (v: PerformanceConfig) => void;
   winSize: WindowSize;
   setWinSize: (v: WindowSize) => void;
+  /** Main-window layout/behavior prefs; persisted + broadcast by the page. */
+  winPrefs: WindowPrefs;
+  setWinPrefs: (v: WindowPrefs) => void;
 };
 
 const SettingsStateContext = createContext<SettingsPageState | null>(null);

@@ -4,8 +4,18 @@ import { avatarBus } from "./avatar-bus";
 import { invoke } from "@tauri-apps/api/core";
 import { applyWindowSize } from "./window-size";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { onUiPrefsChanged, type UiPrefs } from "./events";
+import { onUiPrefsChanged, onWindowPrefsChanged, type UiPrefs, type WindowPrefs } from "./events";
 import { loadUiPrefs } from "./ui-prefs";
+import { loadWindowPrefs, DEFAULT_WINDOW_PREFS } from "./window-prefs";
+import {
+  applyWindowBehavior,
+  armPositionTracking,
+  clickThroughEnabled,
+  persistCurrentPosition,
+  restoreWindowLayout,
+  snapToAnchor,
+} from "./window-control";
+import { applyAccent } from "./theme";
 import { MainWindowLayout } from "./ui/templates/MainWindowLayout";
 import { SlotOutlet, WidgetHost } from "./plugins/slots";
 
@@ -15,6 +25,11 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [uiPrefs, setUiPrefs] = useState<UiPrefs>(loadUiPrefs);
+  // Live window prefs for the click-through gate; also the diff base for
+  // applying preference changes arriving from the settings window. The
+  // startup effect below assigns the loaded value before the click-through
+  // effect (declaration order) starts polling.
+  const winPrefsRef = useRef<WindowPrefs | null>(null);
 
   useEffect(() => {
     const applySaved = () => {
@@ -31,6 +46,15 @@ export default function App() {
     };
     applySaved();
 
+    // Window layout prefs (position restore, always-on-top, follow-Spaces,
+    // accent) + arm debounced position saving once the restore is done, so
+    // the OS's pre-restore placement can't overwrite the stored position.
+    const winPrefs = loadWindowPrefs();
+    winPrefsRef.current = winPrefs;
+    applyAccent(winPrefs.accent);
+    void restoreWindowLayout(winPrefs).finally(() => armPositionTracking());
+    void applyWindowBehavior(winPrefs);
+
     // Moving the window between monitors (especially across different DPIs)
     // can make the OS/Tauri resize it. Re-apply the user's chosen size so it
     // doesn't silently change.
@@ -42,13 +66,27 @@ export default function App() {
         applySaved();
       }, 150);
     };
+    // Persist the position after a drag settles (saved physical px, restored
+    // on the next launch).
+    let posTimer: number | null = null;
+    const scheduleSavePosition = () => {
+      if (posTimer !== null) window.clearTimeout(posTimer);
+      posTimer = window.setTimeout(() => {
+        posTimer = null;
+        void persistCurrentPosition();
+      }, 500);
+    };
     let unlistenMoved: (() => void) | null = null;
     let unlistenScale: (() => void) | null = null;
     const win = getCurrentWindow();
-    void win.onMoved(scheduleReapply).then((u) => { unlistenMoved = u; });
+    void win.onMoved(() => {
+      scheduleReapply();
+      scheduleSavePosition();
+    }).then((u) => { unlistenMoved = u; });
     void win.onScaleChanged(scheduleReapply).then((u) => { unlistenScale = u; });
     return () => {
       if (timer !== null) window.clearTimeout(timer);
+      if (posTimer !== null) window.clearTimeout(posTimer);
       unlistenMoved?.();
       unlistenScale?.();
     };
@@ -63,12 +101,33 @@ export default function App() {
     };
   }, []);
 
+  // Window prefs changed (settings window or a prefs write here): apply the
+  // diff, not everything — e.g. a position save must not re-snap the window.
+  useEffect(() => {
+    return onWindowPrefsChanged((p) => {
+      const prev = winPrefsRef.current ?? DEFAULT_WINDOW_PREFS;
+      winPrefsRef.current = p;
+      applyAccent(p.accent);
+      if (p.alwaysOnTop !== prev.alwaysOnTop || p.followSpaces !== prev.followSpaces) {
+        void applyWindowBehavior(p);
+      }
+      if (p.anchor !== prev.anchor && p.anchor !== "free") {
+        void snapToAnchor(p.anchor);
+      }
+      // clickThrough is read live by the click-through poll via winPrefsRef.
+    });
+  }, []);
+
   // Click-through polls the cursor and reads pixel alpha through the avatar
   // bus (the avatar engine provider answers; no-ops until one is installed).
+  // Controlled by the General-tab pref (live) plus the plugin runtime
+  // override (ctx.window.setClickThrough); the poll reads both live.
   useEffect(() => {
     return initClickThrough({
       canvas: () => canvasRef.current,
       alphaAt: (x, y) => avatarBus().pixelAlphaAt(x, y),
+      enabled: () =>
+        clickThroughEnabled(winPrefsRef.current ?? DEFAULT_WINDOW_PREFS),
     });
   }, []);
 

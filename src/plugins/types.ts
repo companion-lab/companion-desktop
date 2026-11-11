@@ -2,6 +2,7 @@
 // API surface (`PluginContext`) the host hands to it at activation.
 
 import type { ComponentType, ReactNode } from "react";
+import type { WindowAnchor } from "../events";
 
 // ---------------------------------------------------------------------------
 // Contributions
@@ -273,6 +274,42 @@ export type SecretsSurface = {
 };
 
 // ---------------------------------------------------------------------------
+// Window surface (requires the "window" manifest permission)
+// ---------------------------------------------------------------------------
+
+/** Position or size in logical (CSS) pixels. */
+export type LogicalPoint = { x: number; y: number };
+export type LogicalSizeLike = { width: number; height: number };
+
+/**
+ * Control of the companion (main) window. Every method routes to the main
+ * window even when called from the settings window. Changes are
+ * runtime-only: the user's General-tab preferences win at the next startup.
+ * Requires the `"window"` permission in manifest.json — without it every
+ * method throws.
+ */
+export type WindowSurface = {
+  /** Logical size of the companion window. */
+  getSize: () => Promise<LogicalSizeLike>;
+  /** Resize the companion window (logical px; clamped by its min size). */
+  setSize: (size: LogicalSizeLike) => Promise<void>;
+  /** Logical top-left of the companion window (global coordinates). */
+  getPosition: () => Promise<LogicalPoint>;
+  /** Move the companion window: absolute logical coordinates or a preset
+   *  anchor on the current monitor's work area. */
+  setPosition: (pos: LogicalPoint | WindowAnchor) => Promise<void>;
+  /** Keep the companion above other windows. */
+  setAlwaysOnTop: (on: boolean) => Promise<void>;
+  /** Temporarily toggle cursor pass-through over transparent pixels (the
+   *  Settings > General "Click-through" switch, runtime-only). */
+  setClickThrough: (on: boolean) => void;
+  /** Observe the companion window moving (logical px). */
+  onMoved: (cb: (pos: LogicalPoint) => void) => () => void;
+  /** Observe the companion window resizing (logical px). */
+  onResized: (cb: (size: LogicalSizeLike) => void) => () => void;
+};
+
+// ---------------------------------------------------------------------------
 // Host data
 // ---------------------------------------------------------------------------
 
@@ -369,6 +406,9 @@ export interface PluginContext {
     set: (key: string, value: unknown) => Promise<void>;
     remove: (key: string) => Promise<void>;
   };
+  /** Control of the companion window (position, size, behavior). Gated by
+   *  the `"window"` manifest permission — methods throw without it. */
+  readonly window: WindowSurface;
   /** Live avatar control (no-op outside the main window). */
   readonly avatar: AvatarSurface;
   /** Publish/consume capability providers (TTS, STT). */

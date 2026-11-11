@@ -11,14 +11,15 @@ test.describe("settings page", () => {
     await page.goto("/settings.html");
     await expect(page.getByRole("tab", { name: "General" })).toBeVisible();
     // Sidebar groups render in order with their tabs nested. Core keeps only
-    // host-level tabs; everything else arrives from plugin frontends (not
-    // loaded in a plain browser).
+    // host-level tabs (General, Plugins, About); everything else arrives from
+    // plugin frontends (not loaded in a plain browser).
     const groups = page.locator(".st-nav-group-label");
     await expect(groups).toHaveText(["Avatar", "System"]);
-    await expect(page.locator(".st-tab")).toHaveCount(2);
+    await expect(page.locator(".st-tab")).toHaveCount(3);
 
     await page.getByRole("tab", { name: "Plugins" }).click();
-    await expect(page.locator(".st-view-title")).toHaveText("Plugins");
+    // The title carries a blinking "_" caret span, so match the label only.
+    await expect(page.locator(".st-view-title")).toContainText("Plugins");
     // Active tab persists for the next launch.
     const stored = await page.evaluate(() =>
       localStorage.getItem("companion:settings-tab"),
@@ -28,12 +29,16 @@ test.describe("settings page", () => {
 
   test("general tab renders the core sections", async ({ page }) => {
     await page.goto("/settings.html");
-    await expect(page.locator(".st-view-title")).toHaveText("General");
+    // The title carries a blinking "_" caret span, so match the label only.
+    await expect(page.locator(".st-view-title")).toContainText("General");
     await expect(page.getByText("Window Size")).toBeVisible();
-    // Core keeps only host-level sections (Window Size). The mic shortcut /
-    // voice interrupt (stt plugin) and chat box / persona (chat plugin) are
-    // plugin-owned and only render while their plugin is enabled — in this
-    // degraded plain-browser run no plugin frontends load.
+    // Window behavior (position presets, toggles, accent) is core too.
+    await expect(page.getByText("Window Behavior")).toBeVisible();
+    await expect(page.getByText("Position Preset")).toBeVisible();
+    // Core keeps only host-level sections (Window Size, Window Behavior). The
+    // mic shortcut / voice interrupt (stt plugin) and chat box / persona
+    // (chat plugin) are plugin-owned and only render while their plugin is
+    // enabled — in this degraded plain-browser run no plugin frontends load.
     await expect(page.getByText("Microphone shortcut")).toHaveCount(0);
   });
 });

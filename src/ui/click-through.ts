@@ -56,10 +56,18 @@ type InitOptions = {
    *  null when no engine is live (the avatar bus no-ops). Runs in the same
    *  webview as the engine, so the query is a plain sync call. */
   alphaAt: (cssX: number, cssY: number) => number | null;
+  /** Live click-through switch (Settings > General; read by the poll so
+   *  toggling needs no re-init). Omit = always enabled. */
+  enabled?: () => boolean;
   pollMs?: number;
 };
 
-export function initClickThrough({ canvas, alphaAt, pollMs = 90 }: InitOptions): () => void {
+export function initClickThrough({
+  canvas,
+  alphaAt,
+  enabled,
+  pollMs = 90,
+}: InitOptions): () => void {
   const win = getCurrentWindow();
   let ignoring = false;
   let stopped = false;
@@ -80,6 +88,15 @@ export function initClickThrough({ canvas, alphaAt, pollMs = 90 }: InitOptions):
 
   const poll = async () => {
     if (stopped) return;
+    // Feature disabled (Settings > General): keep releasing cursor events
+    // and skip the hit test entirely.
+    if (enabled && !enabled()) {
+      if (ignoring) {
+        ignoring = false;
+        await win.setIgnoreCursorEvents(false).catch(() => {});
+      }
+      return;
+    }
     try {
       // Use the Rust command for reliable multi-monitor coordinates.
       const local = await invoke<[number, number, number, number] | null>("cursor_window_local");

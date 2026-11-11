@@ -19,6 +19,15 @@
         font-family: system-ui, sans-serif;
         color: white;
       }
+      /* Main-window theme tokens. Defaults match the historical hardcoded
+       * colors; the user's accent preference overrides --c-accent at runtime
+       * (see src/theme.ts). Components read them with the same fallbacks. */
+      :root {
+        --c-accent: #8ab4f8;
+        --c-text: white;
+        --c-panel-bg: rgba(255, 255, 255, 0.04);
+        --c-input-bg: rgba(255, 255, 255, 0.06);
+      }
     </style>
   </head>
   <body>

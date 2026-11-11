@@ -150,7 +150,7 @@ async function activatePlugin(plugin: PluginInfo): Promise<void> {
   if (typeof activate !== "function") {
     throw new Error("bundle has no activate() export");
   }
-  await activate(createPluginContext(plugin.id));
+  await activate(createPluginContext(plugin.id, plugin.permissions));
   console.log(`[plugins] ${plugin.id} activated`);
 }
 

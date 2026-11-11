@@ -28,7 +28,9 @@ pub fn run() {
                 let _ = win.show();
                 #[cfg(target_os = "macos")]
                 {
-                    join_all_spaces(&win);
+                    // Startup default: follow all Spaces (users can turn it
+                    // off in Settings > General, applied from the webview).
+                    set_join_all_spaces(&win, true);
                     println!("[main] join_all_spaces applied");
                 }
             }
@@ -101,6 +103,7 @@ pub fn run() {
             plugin_host::commands::plugin_restore_bundled,
             cursor_window_local,
             cursor_global,
+            window_set_follow_spaces,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -238,25 +241,44 @@ fn make_transparent(win: &tauri::WebviewWindow) {
 /// fullscreen apps) instead of being stranded on the Space it spawned on —
 /// an avatar stuck behind a fullscreen window stops painting entirely
 /// (WebKit suspends rendering for occluded windows), which also starves its
-/// animation and IPC loops.
+/// animation and IPC loops. Toggleable at runtime via
+/// `window_set_follow_spaces` (Settings > General) and from the plugin API.
 #[cfg(target_os = "macos")]
-fn join_all_spaces(win: &tauri::WebviewWindow) {
+fn set_join_all_spaces(win: &tauri::WebviewWindow, join: bool) {
     use objc2::msg_send;
     use objc2::runtime::AnyObject;
     use objc2_app_kit::NSWindowCollectionBehavior;
     unsafe {
         let ns_window = win.ns_window().expect("ns_window") as *mut AnyObject;
         let before: usize = msg_send![ns_window, collectionBehavior];
-        let behavior = before
-            | NSWindowCollectionBehavior::CanJoinAllSpaces.bits()
+        let flags = NSWindowCollectionBehavior::CanJoinAllSpaces.bits()
             | NSWindowCollectionBehavior::FullScreenAuxiliary.bits();
+        let behavior = if join { before | flags } else { before & !flags };
         let _: () = msg_send![ns_window, setCollectionBehavior: behavior];
         let after: usize = msg_send![ns_window, collectionBehavior];
-        println!(
-            "[main] collectionBehavior {before:#b} -> {after:#b} (want CanJoinAllSpaces={:b}, FullScreenAuxiliary={:b})",
-            NSWindowCollectionBehavior::CanJoinAllSpaces.bits(),
-            NSWindowCollectionBehavior::FullScreenAuxiliary.bits(),
-        );
+        if after != before {
+            println!("[main] collectionBehavior {before:#b} -> {after:#b}");
+        }
+    }
+}
+
+/// Toggle the macOS "follow every Space / fullscreen" behavior of the main
+/// window at runtime. No-op on other platforms (the pref is still accepted so
+/// callers don't need platform branches).
+#[tauri::command(rename_all = "snake_case")]
+fn window_set_follow_spaces(app: tauri::AppHandle, join: bool) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let win = app
+            .get_webview_window("main")
+            .ok_or_else(|| "main window not found".to_string())?;
+        set_join_all_spaces(&win, join);
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, join);
+        Ok(())
     }
 }
 

@@ -11,6 +11,7 @@
 //
 // Section ids are the override contract for `replaceSection`:
 //   general.windowSize
+//   general.window
 //   plugins.plugins
 //   about.update
 // (Feature-owned General-tab ids: general.chatbox + general.persona → chat
@@ -22,12 +23,14 @@ import { registerSection, registerTab } from "./registry";
 import { useSettingsState } from "./settings-context";
 import { PluginsSection } from "./PluginsSection";
 import { WindowSizeSection } from "../ui/organisms/WindowSizeSection";
+import { WindowBehaviorSection } from "../ui/organisms/WindowBehaviorSection";
 import { UpdateSection } from "../ui/organisms/UpdateSection";
 
 // Settings state lives at the page level, so any keystroke in any field
 // re-renders the whole page. Memoize every section so a change only
 // re-renders the section it belongs to.
 const WindowSizeSectionM = memo(WindowSizeSection);
+const WindowBehaviorSectionM = memo(WindowBehaviorSection);
 
 // Bridge components: organisms stay prop-driven; these pull state from the
 // settings context so core and plugin sections share one contract.
@@ -36,13 +39,18 @@ function WindowSizeViaContext() {
   return <WindowSizeSectionM winSize={s.winSize} onChange={s.setWinSize} />;
 }
 
+function WindowBehaviorViaContext() {
+  const s = useSettingsState();
+  return <WindowBehaviorSectionM winPrefs={s.winPrefs} onChange={s.setWinPrefs} />;
+}
+
 const CORE_TABS: (SettingsTabContribution & { order: number })[] = [
   {
     id: "general",
     label: "General",
     group: "Avatar",
     order: 10,
-    desc: "Companion identity and main-window size.",
+    desc: "Companion identity, main-window size and behavior.",
     icon: ({ className }) => (
       <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
     ),
@@ -80,6 +88,7 @@ type SectionDef = {
 // (render above) and "bottom" to 150 (render below) — see api.ts.
 const CORE_SECTIONS: SectionDef[] = [
   { id: "general.windowSize", tabId: "general", component: WindowSizeViaContext },
+  { id: "general.window", tabId: "general", component: WindowBehaviorViaContext },
   { id: "plugins.plugins", tabId: "plugins", component: PluginsSection },
   { id: "about.update", tabId: "about", component: UpdateSection },
 ];

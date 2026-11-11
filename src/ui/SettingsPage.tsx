@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { applyWindowSize, BASE_HEIGHT, BASE_WIDTH, type WindowSize } from "../window-size";
 import { SettingsLayout, type SettingsTab } from "./templates/SettingsLayout";
 import { DEFAULT_PERF, loadPerf, savePerf, type PerformanceConfig } from "../perf";
+import type { WindowPrefs } from "../events";
+import { loadWindowPrefs, saveWindowPrefs } from "../window-prefs";
 // Plugin system: tabs/sections come from the contribution registry.
 import { useRegistryVersion, getTabs, getSectionsForTab, getTab, getTabOverride } from "../plugins/registry";
 import { SettingsStateProvider } from "../plugins/settings-context";
@@ -57,6 +59,7 @@ export function SettingsPage() {
   const [winSize, setWinSize] = useState<WindowSize>(() =>
     load(WINDOW_SIZE_KEY, { width: BASE_WIDTH, height: BASE_HEIGHT }),
   );
+  const [winPrefs, setWinPrefs] = useState<WindowPrefs>(loadWindowPrefs);
   const [visited, setVisited] = useState<ReadonlySet<SettingsTabId>>(() => new Set([active]));
 
   useEffect(() => {
@@ -80,6 +83,13 @@ export function SettingsPage() {
     localStorage.setItem(WINDOW_SIZE_KEY, JSON.stringify(winSize));
     void applyWindowSize(winSize);
   }, [winSize]);
+
+  // Window prefs: persist + broadcast; the main window applies the diff
+  // (snapping, always-on-top, …) when it receives the event.
+  const onWinPrefsChange = useCallback((next: WindowPrefs) => {
+    setWinPrefs(next);
+    saveWindowPrefs(next);
+  }, []);
 
   // If the active tab disappears (e.g. its plugin was disabled), fall back to
   // the first available tab instead of leaving a dangling selection.
@@ -108,6 +118,7 @@ export function SettingsPage() {
   const settingsState = {
     perf, setPerf: onPerfChange,
     winSize, setWinSize,
+    winPrefs, setWinPrefs: onWinPrefsChange,
   };
 
   return (

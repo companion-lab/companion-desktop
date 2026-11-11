@@ -1134,6 +1134,52 @@ button:disabled {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
+/* Window behavior section: checkbox toggle rows + accent swatches */
+.st-window-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-bottom: 13px;
+  cursor: pointer;
+}
+
+.st-window-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.st-window-toggle-label {
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--text-primary);
+}
+
+.st-accent-row {
+  display: flex;
+  gap: 9px;
+  margin: 4px 0 2px;
+}
+
+.st-accent-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.st-accent-swatch:hover {
+  transform: scale(1.1);
+}
+
+.st-accent-swatch-active {
+  box-shadow: 0 0 0 2px var(--bg-app), 0 0 0 4px var(--accent);
+  transform: scale(1.05);
+}
+
 /* Dropzone button */
 .dropzone-btn {
   width: 100%;
