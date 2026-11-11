@@ -26,8 +26,8 @@ importers:
         version: 19.3.1(react@19.3.1)
     devDependencies:
       '@companion-lab/plugin':
-        specifier: ^0.1.0
-        version: 0.1.0(react@19.3.1)
+        specifier: ^0.3.0
+        version: 0.3.0(react@19.3.1)
       '@playwright/test':
         specifier: ^1.64.1
         version: 1.64.1
@@ -50,8 +50,8 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(vitest@5.0.5)
       companion-cli:
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.3.0
+        version: 0.3.0
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -88,8 +88,8 @@ packages:
     resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
     engines: {node: '>=18'}
 
-  '@companion-lab/plugin@0.1.0':
-    resolution: {integrity: sha512-jiJOoVYl9EdFFWTXBUDcLghgzDrMoOq9JxU5vgB1V9mLpyyNmGPAUbg6YjGiCebcdvLitM+ubq34HBQIyCkVlQ==}
+  '@companion-lab/plugin@0.3.0':
+    resolution: {integrity: sha512-YpDe49467WFVMsiOJsgmu34WiS99la+qXnorKuidQB2uqqVl9HtRqvfiToZkYR+8124nE/b63rIm4Ign29ElTw==}
     peerDependencies:
       react: '>=18.0.0'
     peerDependenciesMeta:
@@ -649,8 +649,8 @@ packages:
     resolution: {integrity: sha512-XWAtwJ6OHO+tj0EKCs0Y2UamnyOxseZWltU4x2U2wh8g4AigdjwvtUjvLP2tqkA/avxHEtzxNaqGq/YGNwckKg==}
     engines: {node: '>=18'}
 
-  companion-cli@0.1.0:
-    resolution: {integrity: sha512-JhOtLM+GLOYMvnmktY5mcT7v8Ej7zsr22GleNXsae1FpBeWrHSRMxSwBlA7Ja+MxpXC3ZSHmSbXcuX3BDXrijg==}
+  companion-cli@0.3.0:
+    resolution: {integrity: sha512-c8oSFsuhm8+y+OmTTUxJ+PPWg05ljPx6mN/Ctmh6H6AbzzwlovViD6+jTW+hujhf2uHLF8JXf37Rl1C7RSMYDA==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -960,7 +960,7 @@ snapshots:
 
   '@bcoe/v8-coverage@1.0.2': {}
 
-  '@companion-lab/plugin@0.1.0(react@19.3.1)':
+  '@companion-lab/plugin@0.3.0(react@19.3.1)':
     optionalDependencies:
       react: 19.3.1
 
@@ -1282,7 +1282,7 @@ snapshots:
 
   chai@6.3.0: {}
 
-  companion-cli@0.1.0:
+  companion-cli@0.3.0:
     dependencies:
       esbuild: 0.28.2
       fflate: 0.8.3

@@ -17,7 +17,8 @@ minimumReleaseAgeExclude:
   - vite@8.3.2
   - '@types/three@0.187.0'
   - three@0.187.0
-  - companion-cli@0.1.0
+  - companion-cli@0.3.0
+  - '@companion-lab/plugin@0.3.0'
 overrides:
   source-map-js@>=1.0.0 <1.2.2: ^1.2.2
   vite@>=8.3.0 <=8.3.2: ^8.3.3

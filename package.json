@@ -1,7 +1,7 @@
 {
   "name": "companion",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.3.0",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -21,7 +21,7 @@
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@companion-lab/plugin": "^0.1.0",
+    "@companion-lab/plugin": "^0.3.0",
     "@playwright/test": "^1.64.1",
     "@tauri-apps/cli": "^2.12.1",
     "@types/node": "^26.6.4",
@@ -29,7 +29,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest/coverage-v8": "^5.0.5",
-    "companion-cli": "^0.1.0",
+    "companion-cli": "^0.3.0",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
