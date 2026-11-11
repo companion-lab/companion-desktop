@@ -185,6 +185,28 @@ jobs:
         if: runner.os != 'MacOS' || env.APPLE_CERTIFICATE == ''
         run: pnpm tauri build ${{ matrix.tauri_args }}
 
+      # Runner-side failures (OOM/disk) show up as a bare "exit code 1" in the
+      # annotations; dump the machine state into the job summary, which is
+      # readable from the run page, so a red macos leg can be diagnosed
+      # without log access.
+      - name: Dump diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "## Build diagnostics"
+            echo '```'
+            echo "--- df -h"
+            df -h / || true
+            echo "--- memory"
+            sysctl hw.memsize hw.ncpu 2>/dev/null || true
+            vm_stat 2>/dev/null | head -5 || true
+            echo "--- toolchain"
+            rustc --version || true
+            cargo --version || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Build the app (Developer ID signed + notarized)
         if: runner.os == 'MacOS' && env.APPLE_CERTIFICATE != ''
         run: >-
