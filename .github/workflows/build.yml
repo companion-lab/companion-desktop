@@ -183,7 +183,16 @@ jobs:
 
       - name: Build the app
         if: runner.os != 'MacOS' || env.APPLE_CERTIFICATE == ''
-        run: pnpm tauri build ${{ matrix.tauri_args }}
+        run: |
+          # Unset secrets render as empty-string env vars, and the Tauri
+          # bundler treats a defined APPLE_CERTIFICATE as "import this p12
+          # into a temp keychain" — importing an empty certificate fails
+          # with SecKeychainItemImport invalid parameters. Drop the empty
+          # ones so the bundler falls back to the ad-hoc signingIdentity.
+          for var in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_PATH; do
+            if [ -z "${!var:-}" ]; then unset "$var"; fi
+          done
+          pnpm tauri build ${{ matrix.tauri_args }}
 
       # Runner-side failures (OOM/disk) show up as a bare "exit code 1" in the
       # annotations; dump the machine state into the job summary, which is
