@@ -42,6 +42,12 @@ raw-window-handle = "0.6"
 # dev package or a Wayland-only session degrades to None instead of failing
 # to start the app.
 x11-dl = "2.21"
+# Wayland click-through (click_through.rs): drive the GTK input shape
+# directly — tao's set_ignore_cursor_events never reaches the compositor
+# in WebKitGTK windows. Same versions tao itself pulls in, so no new
+# lockfile entries.
+gtk = "0.18"
+cairo-rs = "0.18"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # objc2: transparent-window setup in lib.rs. Mic permission (TCC) lives in

@@ -557,8 +557,10 @@ name = "companion"
 version = "0.3.0"
 dependencies = [
  "base64 0.22.1",
+ "cairo-rs",
  "chrono",
  "companion-plugin-sdk",
+ "gtk",
  "keyring",
  "libc",
  "libloading 0.9.0",
