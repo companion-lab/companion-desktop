@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 
-// Colors read the main-window theme tokens (see index.html :root and
-// src/theme.ts); fallbacks match the historical hardcoded values.
+// Colors read the main-window theme tokens (see index.html :root);
+// fallbacks match the historical hardcoded values.
 export const section: CSSProperties = {
   marginBottom: 16,
 };

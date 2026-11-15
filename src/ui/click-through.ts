@@ -10,6 +10,11 @@ import { invoke } from "@tauri-apps/api/core";
 // of the global cursor position. Both cursorPosition() and
 // document.elementFromPoint() work while events are ignored — they don't
 // depend on the window receiving input.
+//
+// Native Wayland has neither a global cursor position nor a working
+// `setIgnoreCursorEvents` (tao's GTK input shape never reaches the
+// compositor from a WebKitGTK window), so there the compositor's input
+// region is driven instead: see initClickThroughWayland below.
 
 /** Alpha at or above this counts as "something is there" (0-255). Filters
  *  antialiased edge halo without trapping clicks on faint glow. */
@@ -62,7 +67,32 @@ type InitOptions = {
   pollMs?: number;
 };
 
-export function initClickThrough({
+/** Per-window click-through strategy chooser: the macOS/Windows/X11 poll
+ *  toggles `setIgnoreCursorEvents` from the global cursor position; native
+ *  Wayland drives the compositor's input region instead (no global cursor,
+ *  and tao's GTK input shape never reaches the compositor there). Resolved
+ *  once at init; the returned cleanup releases whichever strategy started. */
+export function initClickThrough(opts: InitOptions): () => void {
+  let stopped = false;
+  let stopActive: (() => void) | null = null;
+  void invoke<"wayland" | "x11" | null>("windowing_backend")
+    .then((backend) => {
+      if (stopped) return;
+      stopActive =
+        backend === "wayland"
+          ? initClickThroughWayland(opts)
+          : initClickThroughPoll(opts);
+    })
+    .catch(() => {
+      // No host (browser dev context): nothing to drive.
+    });
+  return () => {
+    stopped = true;
+    stopActive?.();
+  };
+}
+
+function initClickThroughPoll({
   canvas,
   alphaAt,
   enabled,
@@ -128,4 +158,85 @@ export function initClickThrough({
   void poll();
   timer = setInterval(poll, pollMs) as unknown as number;
   return stop;
+}
+
+// Wayland: the compositor routes clicks outside the window's input region to
+// the surface below, so click-through is managed by cutting a small
+// exclusion rect out of the input region (set_click_through_exclusions) once
+// a pointermove lands on fully transparent canvas pixels. The webview keeps
+// the full input region otherwise and receives real pointer events; moving
+// back onto the model or a DOM overlay fires a fresh pointer event that
+// clears the exclusion. Events never arrive from inside the excluded rect
+// (the compositor routes them below) — which is exactly the passthrough the
+// user wants there.
+function initClickThroughWayland({
+  canvas,
+  alphaAt,
+  enabled,
+}: InitOptions): () => void {
+  // Square (CSS px) cut around the cursor while it sits on transparent
+  // pixels. Big enough to cover small pointer jitters between events.
+  const EXCLUDE_SIDE = 64;
+  // Dedupe grid: only re-sync the region when the cursor moved this far, so
+  // a stream of mousemoves doesn't spam the IPC.
+  const RESYNC_STEP = 16;
+  let stopped = false;
+  // Region state last sent to the host, keyed on the 16px grid ("full" = no
+  // exclusion). Shared by the move handler and the disabled-state poll.
+  let lastSent = "full";
+
+  const send = (at: { x: number; y: number } | null) => {
+    const key = at
+      ? `${Math.round(at.x / RESYNC_STEP)},${Math.round(at.y / RESYNC_STEP)}`
+      : "full";
+    if (key === lastSent) return;
+    lastSent = key;
+    const rects = at
+      ? [[at.x - EXCLUDE_SIDE / 2, at.y - EXCLUDE_SIDE / 2, EXCLUDE_SIDE, EXCLUDE_SIDE]]
+      : null;
+    void invoke("set_click_through_exclusions", { rects }).catch(() => {});
+  };
+
+  const onMove = (e: PointerEvent) => {
+    if (stopped) return;
+    if (enabled && !enabled()) {
+      send(null);
+      return;
+    }
+    const lx = e.clientX;
+    const ly = e.clientY;
+    const hit = document.elementFromPoint(lx, ly);
+    const cv = canvas();
+    const alpha = hit === cv && cv ? alphaAt(lx, ly) : null;
+    // Any DOM overlay or an opaque model pixel captures the cursor; fully
+    // transparent canvas passes through. Alpha readback failure stays
+    // interactive (can't prove emptiness).
+    if (hit && hit !== cv) send(null);
+    else if (alpha !== null && alpha < OPAQUE_ALPHA_THRESHOLD) send({ x: lx, y: ly });
+    else send(null);
+  };
+
+  // A resize invalidates the full-window part of the current region (it was
+  // sized at set time) — reset to full input; the next move re-establishes
+  // the exclusion if needed.
+  const onResize = () => {
+    if (!stopped) send(null);
+  };
+
+  // The move handler only runs while events flow; when the cursor parks in
+  // an excluded (transparent) area and the user then turns the feature off,
+  // no event would clear the exclusion — poll the switch lightly.
+  const timer = setInterval(() => {
+    if (!stopped && enabled && !enabled() && lastSent !== "full") send(null);
+  }, 300);
+
+  document.addEventListener("pointermove", onMove, true);
+  window.addEventListener("resize", onResize);
+  return () => {
+    stopped = true;
+    clearInterval(timer);
+    document.removeEventListener("pointermove", onMove, true);
+    window.removeEventListener("resize", onResize);
+    if (lastSent !== "full") send(null);
+  };
 }

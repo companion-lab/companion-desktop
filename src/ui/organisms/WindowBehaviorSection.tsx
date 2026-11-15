@@ -1,6 +1,5 @@
 import { SectionCard } from "../molecules/SectionCard";
 import type { WindowPrefs } from "../../events";
-import { ACCENT_CHOICES, DEFAULT_ACCENT } from "../../theme";
 
 type Anchor = WindowPrefs["anchor"];
 
@@ -46,8 +45,8 @@ type Props = {
 
 /**
  * Main-window position and behavior: corner snap presets, position memory,
- * always-on-top, click-through, macOS follow-Spaces, and the accent color.
- * Overridable by plugins via the `general.window` section id.
+ * always-on-top, click-through, macOS follow-Spaces. Overridable by plugins
+ * via the `general.window` section id.
  */
 export function WindowBehaviorSection({ winPrefs, onChange }: Props) {
   const set = (patch: Partial<WindowPrefs>) => onChange({ ...winPrefs, ...patch });
@@ -106,28 +105,6 @@ export function WindowBehaviorSection({ winPrefs, onChange }: Props) {
           onChange={(v) => set({ followSpaces: v })}
         />
       )}
-
-      <label className="st-field">
-        <span className="st-field-label">
-          <span>Accent Color</span>
-        </span>
-        <div className="st-accent-row" role="group" aria-label="Accent color">
-          {ACCENT_CHOICES.map((color) => (
-            <button
-              key={color}
-              type="button"
-              title={color}
-              aria-label={`Accent color ${color}`}
-              onClick={() => set({ accent: color })}
-              className={`st-accent-swatch ${(winPrefs.accent ?? DEFAULT_ACCENT) === color ? "st-accent-swatch-active" : ""}`}
-              style={{ background: color }}
-            />
-          ))}
-        </div>
-        <span className="st-field-hint">
-          Tints the companion window's headings and highlights.
-        </span>
-      </label>
     </SectionCard>
   );
 }

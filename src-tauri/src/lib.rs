@@ -1,5 +1,6 @@
 #![allow(unexpected_cfgs)]
 
+mod click_through;
 mod plugin_host;
 mod updater;
 
@@ -104,6 +105,8 @@ pub fn run() {
             cursor_window_local,
             cursor_global,
             window_set_follow_spaces,
+            click_through::windowing_backend,
+            click_through::set_click_through_exclusions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -15,7 +15,6 @@ import {
   restoreWindowLayout,
   snapToAnchor,
 } from "./window-control";
-import { applyAccent } from "./theme";
 import { MainWindowLayout } from "./ui/templates/MainWindowLayout";
 import { SlotOutlet, WidgetHost } from "./plugins/slots";
 
@@ -46,12 +45,11 @@ export default function App() {
     };
     applySaved();
 
-    // Window layout prefs (position restore, always-on-top, follow-Spaces,
-    // accent) + arm debounced position saving once the restore is done, so
-    // the OS's pre-restore placement can't overwrite the stored position.
+    // Window layout prefs (position restore, always-on-top, follow-Spaces)
+    // + arm debounced position saving once the restore is done, so the OS's
+    // pre-restore placement can't overwrite the stored position.
     const winPrefs = loadWindowPrefs();
     winPrefsRef.current = winPrefs;
-    applyAccent(winPrefs.accent);
     void restoreWindowLayout(winPrefs).finally(() => armPositionTracking());
     void applyWindowBehavior(winPrefs);
 
@@ -107,7 +105,6 @@ export default function App() {
     return onWindowPrefsChanged((p) => {
       const prev = winPrefsRef.current ?? DEFAULT_WINDOW_PREFS;
       winPrefsRef.current = p;
-      applyAccent(p.accent);
       if (p.alwaysOnTop !== prev.alwaysOnTop || p.followSpaces !== prev.followSpaces) {
         void applyWindowBehavior(p);
       }
