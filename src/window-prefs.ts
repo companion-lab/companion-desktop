@@ -15,7 +15,6 @@ export const DEFAULT_WINDOW_PREFS: WindowPrefs = {
   alwaysOnTop: true,
   clickThrough: true,
   followSpaces: true,
-  accent: null,
   savedPosition: null,
 };
 

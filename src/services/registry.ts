@@ -3,9 +3,9 @@
 // services/tts.ts and services/stt.ts.
 //
 // One active provider per service kind. TTS is a takeover stack: a plugin
-// can take the slot (e.g. the sakura voice plugin while its toggle is on)
-// and hand it back by registering null, which restores the provider
-// underneath without a restart. STT stays last-registration-wins. When
+// can take the slot (e.g. the sakura voice plugin while it is enabled) and
+// hand it back by registering null, which restores the provider underneath
+// without a restart. STT stays last-registration-wins. When
 // nothing is registered the facades fall back to no-op/local
 // implementations.
 

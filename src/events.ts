@@ -43,9 +43,6 @@ export type WindowPrefs = {
   clickThrough: boolean;
   /** macOS only: follow every Space / coexist with fullscreen apps. */
   followSpaces: boolean;
-  /** Main-window accent color (hex), applied as the `--c-accent` theme
-   *  token. Null = default. */
-  accent: string | null;
   /** Last window position (physical px), persisted after drags. */
   savedPosition: { x: number; y: number } | null;
 };

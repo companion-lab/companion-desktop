@@ -226,6 +226,13 @@ export type TtsProvider = {
     onAllDone: () => void,
     onSpeakingChange?: (speaking: boolean) => void,
   ) => TtsStream;
+  /** Rewrite voice-emotion tags written in a mis-bracketed form into this
+   *  engine's canonical syntax (e.g. the sakura voice turning a model's
+   *  "<<sad1>>" or "[sad1]" into "【sad1】"). Optional — engines whose tag
+   *  syntax needs no normalization may omit it; callers must check before
+   *  use. Chat runs it on the final reply text before display/storage; the
+   *  provider is expected to apply the same rewrite to its own speak paths. */
+  normalizeVoiceTags?: (text: string) => string;
   stop: () => void;
   setVolume: (v: number) => void;
 };

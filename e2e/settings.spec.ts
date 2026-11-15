@@ -32,7 +32,7 @@ test.describe("settings page", () => {
     // The title carries a blinking "_" caret span, so match the label only.
     await expect(page.locator(".st-view-title")).toContainText("General");
     await expect(page.getByText("Window Size")).toBeVisible();
-    // Window behavior (position presets, toggles, accent) is core too.
+    // Window behavior (position presets, toggles) is core too.
     await expect(page.getByText("Window Behavior")).toBeVisible();
     await expect(page.getByText("Position Preset")).toBeVisible();
     // Core keeps only host-level sections (Window Size, Window Behavior). The
