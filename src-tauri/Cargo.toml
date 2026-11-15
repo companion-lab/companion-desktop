@@ -1,6 +1,6 @@
 [package]
 name = "companion"
-version = "0.3.0"
+version = "0.3.1"
 description = "VRM desktop companion"
 authors = ["you"]
 license = "MIT"
