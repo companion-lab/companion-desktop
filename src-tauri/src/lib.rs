@@ -102,6 +102,8 @@ pub fn run() {
             plugin_host::commands::plugin_import_archive,
             plugin_host::commands::plugin_delete,
             plugin_host::commands::plugin_restore_bundled,
+            plugin_host::update::plugin_check_updates,
+            plugin_host::update::plugin_update,
             cursor_window_local,
             cursor_global,
             window_set_follow_spaces,

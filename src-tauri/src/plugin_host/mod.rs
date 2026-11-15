@@ -15,6 +15,7 @@ pub mod bridge;
 pub mod commands;
 pub mod dylib;
 pub mod manifest;
+pub mod update;
 
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -77,6 +78,9 @@ pub struct PluginInfo {
     /// True when the package originated from the app's bundled features and
     /// can be restored after uninstall ("Restore bundled features").
     pub bundled: bool,
+    /// Update advertisement from the manifest (`None` = no update support).
+    pub version_check_url: Option<String>,
+    pub update_url: Option<String>,
 }
 
 /// A backend tool as merged into the chat tool list (`plugin_list_tools`).
@@ -610,6 +614,21 @@ impl PluginHostState {
         std::fs::create_dir_all(dest.parent().unwrap()).map_err(|e| e.to_string())?;
         copy_dir_recursive(&pkg_root, &dest)?;
 
+        // A re-imported bundled feature (update button or manual zip) replaces
+        // the whole directory, dropping the `.seeded-stamp` — without this the
+        // next launch's refresh_bundled_if_stale would treat the new copy as
+        // stale and restore the older app-bundled one. Stamp it as current, so
+        // the update sticks until an app update ships a rebuilt bundled copy.
+        if let Some(bundled_src) = self
+            .inner
+            .bundled_dir
+            .as_ref()
+            .map(|root| root.join(&manifest.id))
+            .filter(|src| src.is_dir())
+        {
+            write_seed_stamp(&bundled_src, &dest);
+        }
+
         let mut guard = self.lock()?;
         if let Some(pos) = guard
             .plugins
@@ -819,6 +838,8 @@ fn plugin_info(p: &LoadedPlugin, enabled: bool, bundled: bool) -> PluginInfo {
             .map(|f| p.dir.join(&f.entry).to_string_lossy().into_owned()),
         dir: p.dir.to_string_lossy().into_owned(),
         bundled,
+        version_check_url: p.manifest.version_check_url.clone(),
+        update_url: p.manifest.update_url.clone(),
     }
 }
 

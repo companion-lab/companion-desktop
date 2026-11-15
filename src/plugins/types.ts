@@ -336,6 +336,9 @@ export type PluginInfo = {
   dir: string;
   /** Ships with the app; uninstalling is reversible via Restore. */
   bundled: boolean;
+  /** Update advertisement from the manifest; null = no update support. */
+  versionCheckUrl: string | null;
+  updateUrl: string | null;
 };
 
 /** Mirror of the Rust `PluginToolInfo`. */
@@ -344,6 +347,17 @@ export type PluginToolInfo = {
   name: string;
   description: string;
   inputSchema: unknown;
+};
+
+/** Mirror of the Rust `PluginUpdateInfo` (plugin_host/update.rs): one
+ *  plugin's version-check result. Only plugins whose manifest declares a
+ *  versionCheckUrl are returned. */
+export type PluginUpdateInfo = {
+  pluginId: string;
+  currentVersion: string;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  error: string | null;
 };
 
 /** Instruction text a plugin contributes to the chat system prompt. Appended
