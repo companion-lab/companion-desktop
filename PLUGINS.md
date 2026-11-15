@@ -226,8 +226,8 @@ companion-cli build my-plugin
 # -> my-plugin/dist/my-plugin-0.1.0.zip
 ```
 
-Install it globally with `npm install -g companion-cli`, or run it straight
-from the repo with `node plugin-cli/bin/companion-cli.mjs …`. Options:
+Install it globally with `npm install -g companion-cli`, or run it without
+installing via `npx companion-cli …`. Options:
 `--out <dir>` (default
 `./dist`), `--name <file>` (default `<id>-<version>.zip`), `--flat` (manifest
 at the zip root instead of an `<id>/` folder — the importer accepts both),
