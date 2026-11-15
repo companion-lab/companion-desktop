@@ -2,7 +2,7 @@
 name = "companion"
 version = "0.3.0"
 description = "VRM desktop companion"
-authors = ["you"]
+authors = ["Companion Lab"]
 license = "MIT"
 edition = "2021"
 rust-version = "1.77"
