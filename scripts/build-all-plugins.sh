@@ -134,4 +134,16 @@ for feature in "${features[@]}"; do
   fi
 done
 
+# Keep the app's macOS permission plists in sync with what the freshly built
+# packages declare: bundled plugins' "microphone"/"camera"/… permissions are
+# appended to src-tauri/Entitlements.plist and Info.plist (TCC usage
+# descriptions + hardened-runtime entitlements) so `tauri build` picks them
+# up without hand-editing the plists per plugin. Idempotent — entries
+# already present are left untouched. (Same step as plugin-repos/build-all.sh.)
+echo "[build-all] syncing macOS plugin permissions into src-tauri plists"
+if ! node "$repo_root/scripts/merge-plugin-permissions.mjs" "$out_dir"; then
+  echo "[build-all] FAILED: merge-plugin-permissions" >&2
+  status=1
+fi
+
 exit $status
