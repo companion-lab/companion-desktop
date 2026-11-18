@@ -90,3 +90,12 @@ export function activeTtsProvider(): TtsProvider | null {
 export function activeSttProvider(): SttProvider | null {
   return sttProvider;
 }
+
+/** Test helper: clear every registration (registry.test.ts precedent). */
+export function resetServicesForTests() {
+  ttsStack.length = 0;
+  ttsProvider = null;
+  sttProvider = null;
+  sttOwner = null;
+  listeners.clear();
+}
