@@ -163,8 +163,9 @@ fn fetch_latest() -> Result<Release, String> {
 
 /// Platform tag build.yml stamps into asset names (companion-<version>-<platform>.zip).
 /// A target without a built asset matches nothing — the caller degrades to the
-/// releases page link.
-fn asset_platform() -> &'static str {
+/// releases page link. Also substituted for `{platform}` in plugin manifests'
+/// update URLs (plugin_host::update).
+pub(crate) fn asset_platform() -> &'static str {
     #[cfg(target_os = "macos")]
     {
         if cfg!(target_arch = "aarch64") {
@@ -198,7 +199,8 @@ fn asset_platform() -> &'static str {
 /// Compare "1.2.3" style versions (optional `v` prefix and `-prerelease`
 /// suffix). Numeric segments compare numerically; a prerelease of the same
 /// numbers is older than the plain release; two prereleases count as equal.
-fn is_newer_version(current: &str, latest: &str) -> bool {
+/// Shared with the plugin update check (plugin_host::update).
+pub(crate) fn is_newer_version(current: &str, latest: &str) -> bool {
     let (cur_segs, cur_pre) = parse_version(current);
     let (lat_segs, lat_pre) = parse_version(latest);
     let n = cur_segs.len().max(lat_segs.len());

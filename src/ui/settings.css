@@ -1474,6 +1474,11 @@ button:disabled {
   color: #fbbf24;
   border-color: rgba(251, 191, 36, 0.35);
 }
+/* "update → vX.Y.Z" badge on a plugin row with a newer release available. */
+.plugin-badge-update {
+  color: #7dd3fc;
+  border-color: rgba(125, 211, 252, 0.35);
+}
 .plugin-error {
   color: #f87171;
   font-size: 12px;

@@ -10,7 +10,36 @@ import { SectionCard } from "../ui/molecules/SectionCard";
 import { Button } from "../ui/atoms/Button";
 import { ConfirmModal } from "../ui/molecules/ConfirmModal";
 import { disablePlugins, enablePlugin } from "./host";
-import type { PluginInfo } from "./types";
+import type { PluginInfo, PluginUpdateInfo } from "./types";
+
+// Payloads of the update flow's progress/failure events (Rust mirrors in
+// plugin_host/update.rs).
+type UpdateProgressPayload = {
+  pluginId: string;
+  received: number;
+  total: number | null;
+};
+type UpdateFailedPayload = { pluginId: string; message: string };
+
+// Auto-check throttling: the newest-version map is persisted so re-entering
+// the Plugins tab inside the TTL doesn't re-hit every check URL. Short TTL —
+// the checks go through GitHub's website redirect route, which has no API
+// rate limit; the cache only smooths rapid tab flips.
+const UPDATES_CACHE_KEY = "companion-plugin-updates";
+const UPDATES_CACHE_TTL = 5 * 60 * 1000;
+type UpdatesCache = { checkedAt: number; latest: Record<string, string> };
+
+/** Button text while a package downloads: percentage when the server sent a
+ *  Content-Length, indeterminate spinner text otherwise. Capped at 99% — 100%
+ *  is the import landing, signaled by plugins-changed. */
+function updateButtonLabel(
+  progress?: { received: number; total: number | null },
+): string {
+  if (progress?.total) {
+    return `Updating ${Math.min(99, Math.round((progress.received / progress.total) * 100))}%`;
+  }
+  return "Updating…";
+}
 
 export function PluginsSection() {
   const [plugins, setPlugins] = useState<PluginInfo[] | null>(null);
@@ -25,6 +54,12 @@ export function PluginsSection() {
   // windows right away; the reload (both webviews, clean state) is deferred
   // so several plugins can be changed before one reset.
   const [pendingRestart, setPendingRestart] = useState(false);
+  // plugin id → newest version a check found (only when newer than installed).
+  const [updates, setUpdates] = useState<Record<string, string>>({});
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [updateProgress, setUpdateProgress] = useState<
+    Record<string, { received: number; total: number | null }>
+  >({});
   // Restore/import finish asynchronously on the Rust side (their commands
   // return before the work does); these flags clear the spinner state when
   // the completion event arrives. Frontend activation for freshly installed
@@ -32,6 +67,9 @@ export function PluginsSection() {
   const restoreFollowUpRef = useRef(false);
   const importRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // The auto-check on section open runs once per mount; manual checks via the
+  // toolbar button re-run it on demand.
+  const autoCheckDoneRef = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -41,6 +79,103 @@ export function PluginsSection() {
       setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
+
+  /** Drop one plugin's live download-progress entry (completion/failure). */
+  const clearUpdateProgress = useCallback((pluginId: string) => {
+    setUpdateProgress((prev) => {
+      if (!(pluginId in prev)) return prev;
+      const next = { ...prev };
+      delete next[pluginId];
+      return next;
+    });
+  }, []);
+
+  /** Background-fetch the newest version of every plugin that declares a
+   *  versionCheckUrl. Runs automatically when the section mounts — no button,
+   *  and failures stay quiet (console only) so a flaky network never nags. */
+  const runUpdateCheck = useCallback(async () => {
+    try {
+      const results = await invoke<PluginUpdateInfo[]>("plugin_check_updates");
+      const latest: Record<string, string> = {};
+      for (const r of results) {
+        if (r.error) {
+          console.warn(
+            `[plugins] update check failed for ${r.pluginId}: ${r.error}`,
+          );
+          continue;
+        }
+        if (r.updateAvailable && r.latestVersion) {
+          latest[r.pluginId] = r.latestVersion;
+        }
+      }
+      setUpdates(latest);
+      // Best-effort cache; storage quirks (private mode) must not break the
+      // check itself.
+      try {
+        localStorage.setItem(
+          UPDATES_CACHE_KEY,
+          JSON.stringify({ checkedAt: Date.now(), latest }),
+        );
+      } catch {
+        // ignore
+      }
+    } catch (e) {
+      console.warn("[plugins] update check failed:", e);
+    }
+  }, []);
+
+  /** Download the plugin's update package and re-import it in place. */
+  const startUpdate = useCallback(
+    async (plugin: PluginInfo, target: string) => {
+      setUpdatingId(plugin.id);
+      setUpdateProgress((prev) => ({
+        ...prev,
+        [plugin.id]: { received: 0, total: null },
+      }));
+      setError(null);
+      try {
+        // Fire-and-forget on the Rust side: progress events stream the
+        // download, plugins-changed signals the completed import, and
+        // plugin-update-failed reports a failure.
+        await invoke("plugin_update", {
+          plugin_id: plugin.id,
+          latest_version: target,
+        });
+      } catch (e) {
+        setUpdatingId(null);
+        clearUpdateProgress(plugin.id);
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [clearUpdateProgress],
+  );
+
+  // The section remounts on every visit to the Plugins tab, so this fetches
+  // the update status in the background on each entry: hydrate from the cache
+  // while it is fresh, otherwise go to the wire.
+  useEffect(() => {
+    if (plugins === null || autoCheckDoneRef.current) return;
+    autoCheckDoneRef.current = true;
+    let cache: UpdatesCache | null = null;
+    try {
+      cache = JSON.parse(
+        localStorage.getItem(UPDATES_CACHE_KEY) ?? "null",
+      ) as UpdatesCache | null;
+    } catch {
+      cache = null;
+    }
+    if (
+      cache &&
+      typeof cache.checkedAt === "number" &&
+      cache.latest &&
+      typeof cache.latest === "object" &&
+      Date.now() - cache.checkedAt < UPDATES_CACHE_TTL
+    ) {
+      setUpdates(cache.latest);
+      return;
+    }
+    void runUpdateCheck();
+  }, [plugins, runUpdateCheck]);
 
   useEffect(() => {
     void refresh();
@@ -56,12 +191,49 @@ export function PluginsSection() {
         importRef.current = false;
         setImporting(false);
       }
+      // An update's import lands through the same broadcast: drop the
+      // spinner, and retire any "newer version" badge the update satisfied.
+      setUpdatingId(null);
+      setUpdateProgress({});
+      setUpdates((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        for (const p of e.payload) {
+          if (next[p.id] === p.version) {
+            delete next[p.id];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
     });
+    const unProgress = listen<UpdateProgressPayload>(
+      "plugin-update-progress",
+      (e) => {
+        setUpdateProgress((prev) => ({
+          ...prev,
+          [e.payload.pluginId]: {
+            received: e.payload.received,
+            total: e.payload.total,
+          },
+        }));
+      },
+    );
+    const unFailed = listen<UpdateFailedPayload>(
+      "plugin-update-failed",
+      (e) => {
+        setUpdatingId((cur) => (cur === e.payload.pluginId ? null : cur));
+        clearUpdateProgress(e.payload.pluginId);
+        setError(`Updating ${e.payload.pluginId} failed: ${e.payload.message}`);
+      },
+    );
     return () => {
-      void un.then(
-        (fn) => fn(),
-        () => {},
-      );
+      for (const p of [un, unProgress, unFailed]) {
+        void p.then(
+          (fn) => fn(),
+          () => {},
+        );
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -283,6 +455,14 @@ export function PluginsSection() {
                 <div className="plugin-title">
                   <span className="plugin-name">{p.name}</span>
                   <span className="plugin-version">v{p.version}</span>
+                  {updates[p.id] && (
+                    <span
+                      className="st-card-badge plugin-badge-update"
+                      title={`Newest release: v${updates[p.id]}`}
+                    >
+                      update → v{updates[p.id]}
+                    </span>
+                  )}
                   {p.bundled && (
                     <span
                       className="st-card-badge"
@@ -318,6 +498,19 @@ export function PluginsSection() {
                 )}
               </div>
               <div style={{ display: "flex", gap: 6 }}>
+                {updates[p.id] && (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={updatingId !== null}
+                    aria-label={`Update ${p.name} to v${updates[p.id]}`}
+                    onClick={() => void startUpdate(p, updates[p.id])}
+                  >
+                    {updatingId === p.id
+                      ? updateButtonLabel(updateProgress[p.id])
+                      : "Update"}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn-secondary"
@@ -345,7 +538,8 @@ export function PluginsSection() {
         Changes apply immediately in the open windows, so you can toggle or
         remove several plugins before resetting. Fully unloading a Rust backend
         needs an app restart. Imported plugins are copied into the app data
-        directory.
+        directory. Plugins whose manifest declares an update URL show an
+        Update button when a newer release is available.
       </p>
 
       {pendingDelete && (

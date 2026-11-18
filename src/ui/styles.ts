@@ -34,12 +34,6 @@ export const input: CSSProperties = {
   boxSizing: "border-box",
 };
 
-export const select: CSSProperties = {
-  ...input,
-  appearance: "none",
-  cursor: "pointer",
-};
-
 export const button: CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
