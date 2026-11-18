@@ -60,10 +60,28 @@ pub fn set_click_through_exclusions(
         // the dispatcher getter runs it on the main thread and returns the
         // handle, which this closure then drives during its own main-thread
         // execution.
+        //
+        // GTK objects are !Send, so the handle can't move into the
+        // run_on_main_thread closure as-is. The wrapper below is the standard
+        // escape hatch for this dispatch pattern: the pointer is only MOVED
+        // across threads here and dereferenced exclusively inside this
+        // main-thread closure, never touched from any other thread.
         let gtk_win = window.gtk_window().map_err(|e| e.to_string())?;
+        struct MainThreadGtk(gtk::ApplicationWindow);
+        unsafe impl Send for MainThreadGtk {}
+        impl MainThreadGtk {
+            // Consuming accessor on purpose: calling a method forces the
+            // closure to capture the (Send) wrapper instead of precisely
+            // capturing the !Send `self.0` field through a field path.
+            fn into_inner(self) -> gtk::ApplicationWindow {
+                self.0
+            }
+        }
+        let gtk_win = MainThreadGtk(gtk_win);
         app.run_on_main_thread(move || {
             use gtk::prelude::*;
 
+            let gtk_win = gtk_win.into_inner();
             let Some(gdk_win) = gtk_win.window() else { return };
             // cairo 0.18's RectangleInt wraps the FFI struct — fields are
             // private, construction goes through ::new().
