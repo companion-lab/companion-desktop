@@ -65,20 +65,22 @@ pub fn set_click_through_exclusions(
             use gtk::prelude::*;
 
             let Some(gdk_win) = gtk_win.window() else { return };
-            let full = cairo::Region::create_rectangle(&cairo::RectangleInt {
-                x: 0,
-                y: 0,
-                width: w.ceil() as i32,
-                height: h.ceil() as i32,
-            });
+            // cairo 0.18's RectangleInt wraps the FFI struct — fields are
+            // private, construction goes through ::new().
+            let full = cairo::Region::create_rectangle(&cairo::RectangleInt::new(
+                0,
+                0,
+                w.ceil() as i32,
+                h.ceil() as i32,
+            ));
             if let Some(rects) = &rects {
                 for r in rects {
-                    let _ = full.subtract_rectangle(&cairo::RectangleInt {
-                        x: r[0] as i32,
-                        y: r[1] as i32,
-                        width: r[2] as i32,
-                        height: r[3] as i32,
-                    });
+                    let _ = full.subtract_rectangle(&cairo::RectangleInt::new(
+                        r[0] as i32,
+                        r[1] as i32,
+                        r[2] as i32,
+                        r[3] as i32,
+                    ));
                 }
             }
             gdk_win.input_shape_combine_region(&full, 0, 0);
