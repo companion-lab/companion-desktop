@@ -10,22 +10,38 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 
 pub struct BridgeState {
-    app: AppHandle,
-    plugin_id: String,
+    pub(crate) app: AppHandle,
+    pub(crate) plugin_id: String,
     /// Writable per-plugin directory (`{app_data}/plugins-data/{id}/`).
     data_dir: PathBuf,
     /// Read-only package directory (manifest, bundles, assets).
     plugin_dir: PathBuf,
+    /// Manifest permissions, snapshotted at load. Capability dispatch reads
+    /// this without taking the plugin-host state lock: a `host_call` always
+    /// happens on a thread that may already be inside the host's call path,
+    /// and re-locking would deadlock.
+    permissions: Vec<String>,
 }
 
 impl BridgeState {
-    pub fn new(app: AppHandle, plugin_id: &str, data_dir: PathBuf, plugin_dir: PathBuf) -> Self {
+    pub fn new(
+        app: AppHandle,
+        plugin_id: &str,
+        data_dir: PathBuf,
+        plugin_dir: PathBuf,
+        permissions: Vec<String>,
+    ) -> Self {
         BridgeState {
             app,
             plugin_id: plugin_id.to_string(),
             data_dir,
             plugin_dir,
+            permissions,
         }
+    }
+
+    pub(crate) fn allowed(&self, permission: &str) -> bool {
+        self.permissions.iter().any(|p| p == permission)
     }
 }
 
@@ -112,3 +128,55 @@ fn copy_path(path: &str, out: *mut u8, out_cap: usize) -> usize {
 /// instance holds one of these so the raw pointer embedded in `HostBridge`
 /// never dangles.
 pub type BridgeHandle = Arc<BridgeState>;
+
+/// `HostBridge::host_call`: route a capability call from the backend into
+/// the host (`capabilities::dispatch`), answering with a JSON envelope
+/// allocated here and freed by the plugin through `free_bridge_buffer`.
+pub extern "C" fn host_call(
+    user: *mut c_void,
+    capability: *const u8,
+    capability_len: usize,
+    method: *const u8,
+    method_len: usize,
+    payload: *const u8,
+    payload_len: usize,
+) -> companion_plugin_sdk::RawBuffer {
+    use companion_plugin_sdk::RawBuffer;
+
+    if user.is_null() || capability.is_null() || method.is_null() {
+        return RawBuffer::NULL;
+    }
+    let state = unsafe { &*(user as *const BridgeState) };
+    let capability = String::from_utf8_lossy(unsafe {
+        std::slice::from_raw_parts(capability, capability_len)
+    });
+    let method =
+        String::from_utf8_lossy(unsafe { std::slice::from_raw_parts(method, method_len) });
+    let payload: Value = if payload.is_null() || payload_len == 0 {
+        Value::Null
+    } else {
+        let bytes = unsafe { std::slice::from_raw_parts(payload, payload_len) };
+        serde_json::from_slice(bytes).unwrap_or(Value::Null)
+    };
+    let envelope = match super::capabilities::dispatch(state, &capability, &method, &payload) {
+        Ok(value) => serde_json::json!({ "ok": true, "value": value }),
+        Err(e) => serde_json::json!({ "ok": false, "error": e }),
+    };
+    RawBuffer::from_vec(envelope.to_string().into_bytes())
+}
+
+/// `HostBridge::free_bridge_buffer`: reclaim a buffer this host allocated
+/// for a `host_call` response. Mirrors the plugin's own `free_buffer`.
+pub extern "C" fn free_bridge_buffer(user: *mut c_void, buffer: companion_plugin_sdk::RawBuffer) {
+    if buffer.ptr.is_null() {
+        return;
+    }
+    // The state pointer is only needed for API symmetry with the plugin's
+    // free_buffer; the allocation lives in this process's global allocator.
+    if user.is_null() {
+        return;
+    }
+    unsafe {
+        drop(std::vec::Vec::from_raw_parts(buffer.ptr, buffer.len, buffer.cap));
+    }
+}

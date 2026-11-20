@@ -325,9 +325,12 @@ fn set_join_all_spaces(win: &tauri::WebviewWindow, join: bool) {
 
 /// Toggle the macOS "follow every Space / fullscreen" behavior of the main
 /// window at runtime. No-op on other platforms (the pref is still accepted so
-/// callers don't need platform branches).
-#[tauri::command(rename_all = "snake_case")]
-fn window_set_follow_spaces(app: tauri::AppHandle, join: bool) -> Result<(), String> {
+/// callers don't need platform branches). Shared by the `window_set_follow_spaces`
+/// command and the plugin capability bridge (`ctx.window().set_follow_spaces`).
+pub(crate) fn set_main_follow_spaces(
+    app: &tauri::AppHandle,
+    join: bool,
+) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         let win = app
@@ -341,6 +344,11 @@ fn window_set_follow_spaces(app: tauri::AppHandle, join: bool) -> Result<(), Str
         let _ = (app, join);
         Ok(())
     }
+}
+
+#[tauri::command(rename_all = "snake_case")]
+fn window_set_follow_spaces(app: tauri::AppHandle, join: bool) -> Result<(), String> {
+    set_main_follow_spaces(&app, join)
 }
 
 /// Shared probe behind both cursor commands: the cursor position in

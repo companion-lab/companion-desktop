@@ -155,13 +155,15 @@ fn is_sidecar_name(name: &str) -> bool {
 
 impl BackendInstance {
     /// Load `library`, create the plugin instance with a host bridge bound to
-    /// `plugin_id`, `data_dir`, and `plugin_dir`.
+    /// `plugin_id`, `data_dir`, `plugin_dir`, and the manifest permissions
+    /// (snapshot for the capability gate; `load` never sees the manifest).
     pub fn load(
         app: &tauri::AppHandle,
         library_path: &Path,
         plugin_id: &str,
         data_dir: PathBuf,
         plugin_dir: PathBuf,
+        permissions: Vec<String>,
     ) -> Result<Self, String> {
         // Resolve the actual library file. Manifests may carry a canonical
         // (often macOS) filename; on other platforms fall back to the
@@ -244,6 +246,7 @@ impl BackendInstance {
             plugin_id,
             data_dir,
             plugin_dir,
+            permissions,
         ));
         let native_bridge = HostBridge {
             user: Arc::as_ptr(&bridge_state) as *mut c_void,
@@ -251,6 +254,8 @@ impl BackendInstance {
             log: bridge::log,
             data_dir: bridge::data_dir,
             plugin_dir: bridge::plugin_dir,
+            host_call: bridge::host_call,
+            free_bridge_buffer: bridge::free_bridge_buffer,
         };
 
         let instance = create(native_bridge);

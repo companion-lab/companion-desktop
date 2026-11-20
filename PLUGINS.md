@@ -29,7 +29,7 @@ my-plugin/
   "name": "My Plugin",
   "version": "0.1.0",
   "description": "What it does",
-  "abi": 2,
+  "abi": 3,
   "permissions": ["storage", "events", "tools"],
   "frontend": { "entry": "frontend.js" },
   "backend": { "library": "libmy_backend.dylib" }
@@ -39,9 +39,11 @@ my-plugin/
 - `id`: lowercase alphanumeric with `-`/`_`, must not contain `__` (that is the
   tool-name qualifier separator `{id}__{tool}`).
 - `abi`: must match the host ABI (`companion-plugin-sdk::ABI_VERSION`,
-  currently `2`). Plugins built against an older SDK are refused at load time.
+  currently `3`). Plugins built against an older SDK are refused at load time.
 - `permissions`: declarative in v1 (storage, events, tools, …). Enforced for
-  storage namespacing and tool routing; other permissions are informational.
+  storage namespacing, tool routing, and the Rust backend's capability bridge
+  (`plugins`, `window`, `app`, `shortcuts` — see the SDK README); other
+  permissions are informational.
 - `frontend` / `backend` are both optional: a plugin can be frontend-only,
   backend-only, or both.
 

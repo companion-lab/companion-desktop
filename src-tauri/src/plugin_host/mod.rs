@@ -12,6 +12,7 @@
 //! via `plugin_read_frontend` and imported as blob-URL modules.
 
 pub mod bridge;
+pub mod capabilities;
 pub mod commands;
 pub mod dylib;
 pub mod manifest;
@@ -959,6 +960,7 @@ fn load_backend(
                 &manifest.id,
                 data_dir,
                 dir.to_path_buf(),
+                manifest.permissions.clone(),
             ) {
                 Ok(instance) => (Some(Arc::new(Mutex::new(instance))), None),
                 Err(e) => {
