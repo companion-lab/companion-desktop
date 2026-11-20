@@ -1,8 +1,12 @@
 #![allow(unexpected_cfgs)]
 
 mod click_through;
+#[cfg(target_os = "macos")]
+mod dock_menu;
 mod plugin_host;
 mod updater;
+#[cfg(not(target_os = "macos"))]
+mod tray_menu;
 
 use tauri::{Manager, WindowEvent};
 
@@ -35,6 +39,32 @@ pub fn run() {
                     println!("[main] join_all_spaces applied");
                 }
             }
+
+            // Dock icon right-click menu: a "Settings" entry above AppKit's
+            // system items, opening the settings window.
+            #[cfg(target_os = "macos")]
+            dock_menu::install(app.handle());
+
+            // Windows/Linux: the pet window skips the taskbar, so the tray
+            // icon is the app's right-clickable icon (macOS uses the Dock
+            // menu instead). Its items share the handlers below.
+            #[cfg(not(target_os = "macos"))]
+            if let Err(e) = tray_menu::install(app) {
+                eprintln!("[main] tray menu failed: {e}");
+            }
+
+            // Shared handler for the tray menu items (inert on macOS, where
+            // no tauri menu exists — the Dock menu uses its own selector).
+            app.on_menu_event(|app, event| match event.id().as_ref() {
+                "settings" => {
+                    if let Err(e) = show_settings(app) {
+                        eprintln!("[main] tray: open settings failed: {e}");
+                    }
+                }
+                "show" => show_main_window(app),
+                "quit" => quit_fully(app),
+                _ => {}
+            });
 
             // Discover and load plugin packages (app data + dev plugins dir)
             app.manage(plugin_host::init_state(app.handle()));
@@ -116,6 +146,12 @@ pub fn run() {
 
 #[tauri::command(rename_all = "snake_case")]
 fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
+    show_settings(&app)
+}
+
+/// Reveal the settings webview (creating it if the prewarmed one is gone).
+/// Shared by the `open_settings` command and the macOS Dock menu item.
+fn show_settings(app: &tauri::AppHandle) -> Result<(), String> {
     // The window is pre-created hidden at startup and kept alive on close, so
     // the common path is just revealing an already-loaded webview.
     if let Some(win) = app.get_webview_window("settings") {
@@ -124,7 +160,7 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
         let _ = win.set_focus();
         return Ok(());
     }
-    build_settings_window(&app, true)
+    build_settings_window(app, true)
 }
 
 /// Create the settings webview. Called hidden at startup to warm the page and
@@ -163,16 +199,36 @@ fn restart_app(app: tauri::AppHandle) {
 /// when settings is open).
 #[tauri::command(rename_all = "snake_case")]
 fn quit_app(app: tauri::AppHandle) {
+    quit_fully(&app);
+}
+
+/// Quit for real: closes every window, including the parked/visible settings
+/// window (closing the main window alone intentionally leaves the app alive
+/// when settings is open). Shared by the `quit_app` command and the tray
+/// menu's Quit item.
+fn quit_fully(app: &tauri::AppHandle) {
     // Exit off the IPC dispatch thread. Calling app.exit() synchronously here
     // queues an exit request the macOS event loop never processes (commands
     // run inside the webview's scheme-handler dispatch, and the run loop
     // doesn't get back to queued runtime messages in that state), leaving the
     // app alive with every window — including settings — still on screen.
     // A short delay also lets the IPC response land before the process dies.
+    let app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(100));
         app.exit(0);
     });
+}
+
+/// Reveal the pet window. Without a taskbar button (skipTaskbar) on
+/// Windows/Linux, the tray's Show item is how users get it back if they
+/// closed it while the app stayed alive.
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
 }
 
 #[tauri::command(rename_all = "snake_case")]

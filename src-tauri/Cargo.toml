@@ -53,8 +53,9 @@ cairo-rs = "0.18"
 # objc2: transparent-window setup in lib.rs. Mic permission (TCC) lives in
 # the stt plugin backend now (features/stt/backend/src/mic_permission.rs).
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", features = ["std", "NSGeometry"] }
-objc2-app-kit = { version = "0.3", features = ["std", "NSWindow", "NSApplication"] }
+objc2-foundation = { version = "0.3", features = ["std", "NSGeometry", "NSString"] }
+# NSMenu/NSMenuItem: dock_menu.rs (Dock icon right-click menu).
+objc2-app-kit = { version = "0.3", features = ["std", "NSWindow", "NSApplication", "NSMenu", "NSMenuItem"] }
 libc = "0.2"
 
 [profile.release]
