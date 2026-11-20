@@ -64,6 +64,26 @@ export function useRegistryVersion(): number {
   return useSyncExternalStore(subscribeRegistry, () => store.version);
 }
 
+// ---------------------------------------------------------------------------
+// Discovery lifecycle. The plugin host flips this once its initial activation
+// pass has settled, so pages can tell "tab not registered *yet*" (plugins
+// stream in after first paint) from "tab gone" (uninstalled/disabled) —
+// e.g. a stored last-visited tab id must not be treated as dangling until
+// discovery is done. Bumps so waiting effects re-run.
+// ---------------------------------------------------------------------------
+
+let pluginsSettledFlag = false;
+
+export function markPluginsSettled(): void {
+  if (pluginsSettledFlag) return;
+  pluginsSettledFlag = true;
+  bump();
+}
+
+export function pluginsSettled(): boolean {
+  return pluginsSettledFlag;
+}
+
 let counter = 0;
 function wrap<T>(pluginId: string, order: number | undefined, value: T): Wrapped<T> {
   counter += 1;
@@ -326,5 +346,6 @@ export function resetRegistryForTests() {
   store.contextMenuItems.clear();
   store.tools.clear();
   store.systemPrompts.clear();
+  pluginsSettledFlag = false;
   bump();
 }

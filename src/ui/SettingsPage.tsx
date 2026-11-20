@@ -5,7 +5,14 @@ import { DEFAULT_PERF, loadPerf, savePerf, type PerformanceConfig } from "../per
 import type { WindowPrefs } from "../events";
 import { loadWindowPrefs, saveWindowPrefs } from "../window-prefs";
 // Plugin system: tabs/sections come from the contribution registry.
-import { useRegistryVersion, getTabs, getSectionsForTab, getTab, getTabOverride } from "../plugins/registry";
+import {
+  useRegistryVersion,
+  getTabs,
+  getSectionsForTab,
+  getTab,
+  getTabOverride,
+  pluginsSettled,
+} from "../plugins/registry";
 import { SettingsStateProvider } from "../plugins/settings-context";
 import type { SettingsTabId } from "./templates/SettingsLayout";
 
@@ -41,7 +48,7 @@ function TabBody({
 }
 
 export function SettingsPage() {
-  useRegistryVersion(); // re-render when tabs/sections register
+  const version = useRegistryVersion(); // re-render when tabs/sections register
   const tabs = getTabs();
   const tabIds = tabs.map((t) => t.id).join(",");
 
@@ -92,18 +99,28 @@ export function SettingsPage() {
   }, []);
 
   // If the active tab disappears (e.g. its plugin was disabled), fall back to
-  // the first available tab instead of leaving a dangling selection.
+  // the first available tab instead of leaving a dangling selection. Wait for
+  // plugin discovery to settle first: plugin tabs stream in after first
+  // paint, so a stored tab id looks "missing" until its plugin activates —
+  // falling back early would yank the user off their tab on every launch.
+  // The fallback tab must also be marked visited: TabBody only mounts tabs
+  // in `visited`, and it was seeded with the stale id — skipping this left
+  // the page showing a correct header over an empty body.
   useEffect(() => {
+    if (!pluginsSettled()) return;
     if (tabs.length === 0) return;
     if (tabs.some((t) => t.id === active)) return;
     const next = tabs[0].id;
     setActive(next);
+    setVisited((prev) => (prev.has(next) ? prev : new Set(prev).add(next)));
     try {
       localStorage.setItem(TAB_KEY, next);
     } catch {
       /* ignore */
     }
-  }, [tabIds, active]);
+    // `version` re-runs this when plugin discovery settles (the flag bump),
+    // even if the visible tab list didn't change.
+  }, [tabIds, active, version]);
 
   const select = useCallback((id: SettingsTabId) => {
     setActive(id);

@@ -7,8 +7,11 @@ import {
   getWidgetOverride,
   getContextMenuItems,
   getTools,
+  markPluginsSettled,
+  pluginsSettled,
   removePluginContributions,
   resetRegistryForTests,
+  subscribeRegistry,
 } from "../plugins/registry";
 
 describe("plugin registry", () => {
@@ -18,6 +21,19 @@ describe("plugin registry", () => {
     // builtin.ts registers through the same API; pages call registerBuiltinContributions.
     // Here we exercise the raw registry contract.
     expect(getTabs().length).toBe(0);
+  });
+
+  it("markPluginsSettled flips once and bumps listeners; reset clears it", () => {
+    expect(pluginsSettled()).toBe(false);
+    let bumps = 0;
+    const unsubscribe = subscribeRegistry(() => { bumps += 1; });
+    markPluginsSettled();
+    markPluginsSettled(); // idempotent
+    expect(pluginsSettled()).toBe(true);
+    expect(bumps).toBe(1);
+    unsubscribe();
+    resetRegistryForTests();
+    expect(pluginsSettled()).toBe(false);
   });
 
   it("registerTab / registerSection / ordering bands", async () => {

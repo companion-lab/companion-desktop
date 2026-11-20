@@ -19,13 +19,52 @@ pub mod update;
 
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, TryLockError};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager};
 
 use manifest::PluginManifest;
+
+/// Upper bound on waiting for a backend's mutex in `call`. Legit calls run
+/// for minutes (cold engine loads, full-reply synthesis), so this is a
+/// safety valve for a *wedged* call: past the limit, callers error out
+/// instead of stacking another blocked `spawn_blocking` thread forever.
+const BACKEND_LOCK_WAIT: Duration = Duration::from_secs(10 * 60);
+
+/// Lock a backend for one call, but never block forever: a hung FFI call
+/// holds this mutex for the duration of the call, and without a cap every
+/// later request would pile up behind it on the blocking pool. Legit long
+/// calls pass well inside the limit; only a genuinely wedged one trips it.
+fn lock_backend_for_call<'a>(
+    backend: &'a Mutex<dylib::BackendInstance>,
+    plugin_id: &str,
+) -> Result<MutexGuard<'a, dylib::BackendInstance>, String> {
+    let deadline = Instant::now() + BACKEND_LOCK_WAIT;
+    loop {
+        match backend.try_lock() {
+            Ok(guard) => return Ok(guard),
+            Err(TryLockError::Poisoned(_)) => {
+                return Err(format!("plugin {plugin_id} backend mutex poisoned"));
+            }
+            Err(TryLockError::WouldBlock) => {
+                if Instant::now() >= deadline {
+                    eprintln!(
+                        "[plugins:{plugin_id}] backend still busy after {}s — failing the call; a wedged call is likely holding the lock",
+                        BACKEND_LOCK_WAIT.as_secs()
+                    );
+                    return Err(format!(
+                        "plugin {plugin_id} backend busy: a call has held the backend lock for over {}s",
+                        BACKEND_LOCK_WAIT.as_secs()
+                    ));
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        }
+    }
+}
 
 /// Cheaply cloneable so async commands can move it into `spawn_blocking`.
 #[derive(Clone)]
@@ -431,9 +470,7 @@ impl PluginHostState {
                 .clone()
                 .ok_or_else(|| format!("plugin {plugin_id} has no backend loaded"))?
         };
-        let backend = backend
-            .lock()
-            .map_err(|_| format!("plugin {plugin_id} backend mutex poisoned"))?;
+        let backend = lock_backend_for_call(&backend, plugin_id)?;
         backend.call(method, &payload.to_string())
     }
 

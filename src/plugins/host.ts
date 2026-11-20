@@ -17,7 +17,13 @@ import ReactDOMClient from "react-dom/client";
 import * as JsxRuntime from "react/jsx-runtime";
 import * as ui from "../ui";
 import { createPluginContext } from "./api";
-import { registerBuiltinContributions } from "./builtin";import { getSystemPrompts, getTools, removePluginContributions } from "./registry";
+import { registerBuiltinContributions } from "./builtin";
+import {
+  getSystemPrompts,
+  getTools,
+  markPluginsSettled,
+  removePluginContributions,
+} from "./registry";
 import { useSettingsState } from "./settings-context";
 import type { CompanionPlugin, PluginInfo, UiExports } from "./types";
 
@@ -47,7 +53,11 @@ export async function startPluginHost(): Promise<void> {
   started = true;
 
   registerBuiltinContributions();
-  if (!isTauri()) return;
+  if (!isTauri()) {
+    // No plugin discovery outside Tauri: the tab list is final at mount.
+    markPluginsSettled();
+    return;
+  }
 
   setHostGlobals();
   try {
@@ -74,6 +84,11 @@ export async function startPluginHost(): Promise<void> {
   } catch (e) {
     console.warn("[plugins] host unavailable:", e);
   }
+
+  // Initial activation pass settled (success or failure): plugin tabs that
+  // never registered are genuinely gone, so pages may now fall back from a
+  // dangling stored tab id.
+  markPluginsSettled();
 
   // Live sync: plugins are toggled from another window's Plugins section, and
   // config changes must apply here too — otherwise re-enabling a plugin (e.g.
