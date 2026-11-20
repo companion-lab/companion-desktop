@@ -14,8 +14,9 @@
 //   general.window
 //   plugins.plugins
 //   about.update
-// (Feature-owned General-tab ids: general.chatbox + general.persona → chat
-// plugin, general.voiceInput → stt plugin.)
+// (Feature-owned General-tab ids: general.persona → chat plugin,
+// general.voiceInput → stt plugin. The chat box show/hide is not a section —
+// the chat plugin exposes it as a main-window context-menu item.)
 
 import { memo } from "react";
 import type { SettingsTabContribution } from "./types";
