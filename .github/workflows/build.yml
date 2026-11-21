@@ -38,7 +38,7 @@ env:
     chat=v0.3.2
     mcp=v0.3.2
     stt=v0.3.2
-    tts=v0.3.2
+    tts=v0.3.3
     vrm=v0.3.2
 
 jobs:
