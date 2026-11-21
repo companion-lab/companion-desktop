@@ -271,6 +271,9 @@ export type ServicesSurface = {
   tts: () => TtsProvider;
   /** Active STT provider; rejects engine use when no voice plugin is installed. */
   stt: () => SttProvider | null;
+  /** Subscribe to provider registrations/removals (takeover stack changes
+   *  included). Returns the unsubscribe function. */
+  onProvidersChanged: (listener: () => void) => () => void;
 };
 
 /** Keychain access namespaced to this plugin (`{pluginId}:{name}` accounts). */

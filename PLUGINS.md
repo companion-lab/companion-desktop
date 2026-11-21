@@ -118,7 +118,11 @@ export default definePlugin((ctx) => {
 - `services` — capability provider registry: `registerTts(provider)` /
   `registerStt(provider)` publish engines (the bundled tts and stt plugins do);
   `tts()` returns the active TTS provider (silent fallback when the tts plugin is
-  uninstalled), `stt()` returns the active STT provider or `null`.
+  uninstalled), `stt()` returns the active STT provider or `null`;
+  `onProvidersChanged(listener)` subscribes to registrations/removals
+  (TTS takeover-stack changes included) — voice plugins use it to keep
+  provider-specific behavior (e.g. the `voice-tags` system-prompt fragment)
+  in sync with actually owning the active slot.
 - `secrets.set/get/remove(name)` — OS keychain namespaced to the plugin
   (`{pluginId}:{name}` accounts).
 - `ui` — the host's UI kit (`Button`, `TextInput`, `SectionCard`, …) so

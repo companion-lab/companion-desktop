@@ -7,7 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { LogicalPosition } from "@tauri-apps/api/dpi";
 import * as ui from "../ui";
 import { avatarBus, setAvatarHandlers } from "../avatar-bus";
-import { registerSttProvider, registerTtsProvider } from "../services/registry";
+import { onProvidersChanged, registerSttProvider, registerTtsProvider } from "../services/registry";
 import { sttProvider } from "../services/stt";
 import { ttsProvider } from "../services/tts";
 import { applyWindowSize } from "../window-size";
@@ -254,6 +254,7 @@ export function createPluginContext(
       registerStt: (provider) => registerSttProvider(pluginId, provider),
       tts: () => ttsProvider(),
       stt: () => sttProvider(),
+      onProvidersChanged,
     },
 
     secrets: {
