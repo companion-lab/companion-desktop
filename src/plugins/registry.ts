@@ -9,6 +9,7 @@ import { useSyncExternalStore } from "react";
 import { removePluginServices } from "../services/registry";
 import type {
   ContextMenuItemContribution,
+  ReplyContribution,
   SectionContribution,
   SectionReplacementContribution,
   SettingsTabContribution,
@@ -31,6 +32,7 @@ type Store = {
   contextMenuItems: Map<string, Wrapped<ContextMenuItemContribution>>;
   tools: Map<string, Wrapped<ToolContribution>>;
   systemPrompts: Map<string, Wrapped<SystemPromptContribution>>;
+  replyShapes: Map<string, Wrapped<ReplyContribution>>;
   version: number;
 };
 
@@ -44,6 +46,7 @@ const store: Store = {
   contextMenuItems: new Map(),
   tools: new Map(),
   systemPrompts: new Map(),
+  replyShapes: new Map(),
   version: 0,
 };
 
@@ -204,6 +207,17 @@ export function registerSystemPrompt(pluginId: string, fragment: SystemPromptCon
   );
 }
 
+export function registerReply(pluginId: string, contribution: ReplyContribution) {
+  // Re-registering with the same id within one plugin replaces the shape
+  // (last registration wins — mirrors override maps).
+  for (const [key, entry] of store.replyShapes) {
+    if (entry.pluginId === pluginId && entry.value.id === contribution.id) {
+      store.replyShapes.delete(key);
+    }
+  }
+  register(store.replyShapes, wrap(pluginId, undefined, contribution), "reply shape");
+}
+
 // ---------------------------------------------------------------------------
 // Removal (disable/unload)
 // ---------------------------------------------------------------------------
@@ -227,6 +241,7 @@ export function removePluginContributions(pluginId: string) {
   dropIf(store.contextMenuItems);
   dropIf(store.tools);
   dropIf(store.systemPrompts);
+  dropIf(store.replyShapes);
   // Service providers (TTS/STT) are contributions too: a disabled plugin
   // must not keep publishing capabilities (e.g. the chat mic button read
   // the stt provider after the stt plugin was disabled).
@@ -335,6 +350,14 @@ export function getSystemPrompts(): string[] {
   return out;
 }
 
+/** The active structured-reply shape, if any plugin contributes one. Last
+ *  registration wins (mirrors `ctx.avatar.provide`); dropped live when the
+ *  owning plugin is disabled. */
+export function getReply(): ReplyContribution | null {
+  const entries = [...store.replyShapes.values()];
+  return entries.length ? entries[entries.length - 1].value : null;
+}
+
 /** Test helper: wipe every contribution. */
 export function resetRegistryForTests() {
   store.tabs.clear();
@@ -346,6 +369,7 @@ export function resetRegistryForTests() {
   store.contextMenuItems.clear();
   store.tools.clear();
   store.systemPrompts.clear();
+  store.replyShapes.clear();
   pluginsSettledFlag = false;
   bump();
 }

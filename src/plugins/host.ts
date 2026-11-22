@@ -19,6 +19,7 @@ import * as ui from "../ui";
 import { createPluginContext } from "./api";
 import { registerBuiltinContributions } from "./builtin";
 import {
+  getReply,
   getSystemPrompts,
   getTools,
   markPluginsSettled,
@@ -191,6 +192,7 @@ function setHostGlobals() {
       ui: UiExports;
       tools: { get: typeof getTools };
       systemPrompts: { get: () => string[] };
+      reply: { get: typeof getReply };
     };
   };
   w.__companion_host__ = {
@@ -201,6 +203,7 @@ function setHostGlobals() {
     ui: ui as UiExports,
     tools: { get: getTools },
     systemPrompts: { get: getSystemPrompts },
+    reply: { get: getReply },
   };
 }
 

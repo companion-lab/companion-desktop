@@ -20,6 +20,7 @@ import {
 } from "../window-control";
 import {
   registerContextMenuItem,
+  registerReply,
   registerSection,
   registerSystemPrompt,
   registerTab,
@@ -188,6 +189,9 @@ export function createPluginContext(
     },
     systemPrompt: {
       register: (fragment) => registerSystemPrompt(pluginId, fragment),
+    },
+    reply: {
+      register: (contribution) => registerReply(pluginId, contribution),
     },
 
     backend: {

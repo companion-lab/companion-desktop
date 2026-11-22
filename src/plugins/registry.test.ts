@@ -98,4 +98,31 @@ describe("plugin registry", () => {
     removePluginContributions("b");
     expect(getSystemPrompts()).toEqual([]);
   });
+
+  it("reply shapes: last registration wins, replace by id, removal drops live", async () => {
+    const { registerReply, getReply, removePluginContributions } =
+      await import("../plugins/registry");
+    const shape = (id: string) => ({
+      id,
+      prompt: "pick fields",
+      schema: { type: "object", properties: { text: { type: "string" } } },
+      apply: () => {},
+    });
+    expect(getReply()).toBeNull();
+
+    registerReply("vrm", shape("r1"));
+    expect(getReply()?.id).toBe("r1");
+    // Two different plugins: last registration wins.
+    registerReply("l2d", shape("r2"));
+    expect(getReply()?.id).toBe("r2");
+    // Re-register with same (plugin, id) replaces instead of duplicating.
+    registerReply("vrm", shape("r3"));
+    expect(getReply()?.id).toBe("r3");
+
+    // Disabling the owning plugin drops its shape live.
+    removePluginContributions("vrm");
+    expect(getReply()?.id).toBe("r2");
+    removePluginContributions("l2d");
+    expect(getReply()).toBeNull();
+  });
 });

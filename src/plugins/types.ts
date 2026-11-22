@@ -373,6 +373,28 @@ export type SystemPromptContribution = {
   order?: number;
 };
 
+/** Structured-reply contract a plugin contributes to the chat loop. The chat
+ *  plugin merges `prompt` into its system message, offers the schema as the
+ *  reply carrier (forced function tool / structured output), and forwards
+ *  every parsed reply to `apply`. The contributing plugin owns what the
+ *  fields mean (e.g. the avatar engine owning emotion/motion). */
+export type ReplyContribution = {
+  /** Stable id within the plugin — re-registering replaces. */
+  id: string;
+  /** System-prompt fragment describing the fields and how to choose them. */
+  prompt: string;
+  /** JSON Schema of the reply object. Must allow `{ text: string }`; every
+   *  other top-level property becomes an inline `<<name:value>>` tag kind. */
+  schema: Record<string, unknown>;
+  /** Function-tool name providers force on the final turn.
+   *  Defaults to "avatar_response". */
+  toolName?: string;
+  /** Receives each parsed reply (the `text` field plus every extra field).
+   *  May fire mid-stream as inline tags resolve; the final call carries the
+   *  complete object. */
+  apply: (reply: Record<string, unknown>) => void;
+};
+
 // ---------------------------------------------------------------------------
 // UI helpers re-exported to plugins
 // ---------------------------------------------------------------------------
@@ -414,6 +436,12 @@ export interface PluginContext {
    *  live (applied on the next chat turn). */
   readonly systemPrompt: {
     register: (fragment: SystemPromptContribution) => void;
+  };
+  /** Contribute a structured-reply contract to the chat loop. Re-registering
+   *  with the same id replaces it; disabling the plugin drops it live. The
+   *  last registration across plugins wins. */
+  readonly reply: {
+    register: (contribution: ReplyContribution) => void;
   };
   /** Talk to this plugin's Rust backend (routed via the `plugin_call` host command). */
   readonly backend: {
