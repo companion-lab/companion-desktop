@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { isWebBridge } from "../../web/bridge";
 
 // Tab ids are open strings: built-ins are registered by src/plugins/builtin.tsx
 // and plugins can add more at runtime.
@@ -43,6 +44,10 @@ export function SettingsLayout({
   children,
 }: Props) {
   const current = tabs.find((t) => t.id === active) ?? tabs[0];
+  // The web client navigates between routes (/app pet, /app/settings), so it
+  // needs an in-page way back to the character window; the desktop settings
+  // window just closes over the always-running main window instead.
+  const web = isWebBridge();
 
   return (
     <>
@@ -110,6 +115,20 @@ export function SettingsLayout({
 
       <main className="st-main" role="tabpanel">
         <header className="st-view-header">
+          {web && (
+            <button
+              type="button"
+              className="st-back"
+              onClick={() => {
+                // Same route style as the forward jump in App.tsx; the saved
+                // password (per-origin localStorage) reconnects the bridge.
+                window.location.href = "/app";
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7" /><path d="M19 12H5" /></svg>
+              Back to character
+            </button>
+          )}
           {/* HUD breadcrumb strip, matching the landing hero's cmp:// line */}
           <div className="st-hud-line">
             <span>cmp://settings/{current.id}</span>

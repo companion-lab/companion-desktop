@@ -231,7 +231,10 @@ body {
   position: relative;
   z-index: 1;
   display: flex;
+  /* 100dvh: on mobile browsers 100vh includes the URL bar area, leaving a
+     gap/overflow at the bottom; dvh tracks the visible viewport. */
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
 }
 
@@ -250,6 +253,7 @@ body {
   position: sticky;
   top: 0;
   height: 100vh;
+  height: 100dvh;
   overflow-y: auto;
 }
 
@@ -416,17 +420,57 @@ body {
   animation: st-hud-pulse 2s ease-in-out infinite;
 }
 
-/* Main Content Area */
+/* Main Content Area — fills the rest of the viewport next to the sidebar so
+   the web client reads like a normal full-width dashboard. The desktop
+   settings window is fixed at 780px (548px of content) so no cap is needed
+   there either; a max-width only ever starved the browser view. */
 .st-main {
   flex: 1;
   min-width: 0;
   padding: 36px 44px 48px;
   overflow-y: auto;
-  max-width: 730px;
 }
 
 .st-view-header {
   margin-bottom: 22px;
+}
+
+/* Web client only: route back to the character window (/app). Desktop hides
+   it — its settings window simply closes over the main window. */
+.st-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 14px;
+  padding: 7px 13px 7px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.st-back:hover:not(:disabled) {
+  border-color: rgba(168, 85, 247, 0.45);
+  background: var(--accent-subtle);
+  color: var(--accent-soft);
+}
+
+.st-back:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.st-back svg {
+  transition: transform 0.15s ease;
+}
+
+.st-back:hover svg {
+  transform: translateX(-2px);
 }
 
 /* HUD breadcrumb line above the title — the landing hero's cmp:// strip */
@@ -1345,17 +1389,107 @@ button:disabled {
   .st-shell {
     flex-direction: column;
   }
+
+  /* Sidebar becomes a compact page header: brand row on top, then each tab
+     group as a horizontally scrollable chip row. The desktop pieces that
+     only make sense in a tall column (autosave status, spacer) drop out. */
   .st-side {
     width: 100%;
     height: auto;
     position: static;
     border-right: none;
     border-bottom: 1px solid var(--border-subtle);
-    padding: 16px;
+    padding: 10px 12px 12px;
+    gap: 8px;
+    overflow-y: visible;
   }
+
+  .st-brand {
+    padding: 2px 2px 0;
+    margin-bottom: 0;
+    border-bottom: none;
+  }
+
+  .st-nav-group {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .st-nav-group::-webkit-scrollbar {
+    display: none;
+  }
+
+  .st-nav-group-label {
+    flex-shrink: 0;
+    padding: 0 4px 0 2px;
+  }
+
+  .st-tab {
+    width: auto;
+    flex-shrink: 0;
+    padding: 6px 11px;
+    white-space: nowrap;
+    border-radius: 999px;
+  }
+
+  /* The desktop's left accent bar doesn't fit chips; the filled chip
+     background already signals selection. */
+  .st-tab[aria-selected="true"]::before {
+    content: none;
+  }
+
+  .st-side-spacer,
+  .st-side-status {
+    display: none;
+  }
+
   .st-main {
-    padding: 20px 16px;
+    padding: 18px 14px 40px;
   }
+
+  .st-view-title {
+    font-size: 20px;
+  }
+
+  /* Breadcrumb + autosave chip wrap to two lines instead of clipping. */
+  .st-hud-line {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  /* Rows with trailing actions wrap the actions below the copy instead of
+     squeezing or clipping them. */
+  .st-card {
+    padding: 14px 14px 16px;
+  }
+
+  .st-card-head {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+
+  .st-update-row,
+  .st-plugins-pending,
+  .item-row,
+  .plugin-row,
+  .modal-actions {
+    flex-wrap: wrap;
+  }
+
+  /* 13px inputs trigger iOS focus auto-zoom; 16px prevents it. */
+  input[type="text"],
+  input[type="password"],
+  input[type="date"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
   .provider-grid {
     grid-template-columns: 1fr;
   }
