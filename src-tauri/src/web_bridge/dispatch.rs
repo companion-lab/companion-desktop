@@ -206,6 +206,16 @@ pub async fn invoke(
         "web_status" => {
             serde_json::to_value(crate::web_bridge::status()).map_err(|e| e.to_string())
         }
+        "web_set_enabled" => {
+            let a: EnabledArg = args(payload, cmd)?;
+            let app = st.app.clone();
+            let v = tauri::async_runtime::spawn_blocking(move || {
+                crate::web_bridge::set_enabled(app, a.enabled)
+            })
+            .await
+            .map_err(|e| format!("web toggle failed: {e}"))??;
+            serde_json::to_value(v).map_err(|e| e.to_string())
+        }
         "web_set_lan" => {
             let a: EnabledArg = args(payload, cmd)?;
             let app = st.app.clone();

@@ -144,6 +144,7 @@ pub fn run() {
             cursor_global,
             window_set_follow_spaces,
             web_bridge::web_status,
+            web_bridge::web_set_enabled,
             web_bridge::web_set_lan,
             web_bridge::web_set_password,
             web_bridge::web_set_port,

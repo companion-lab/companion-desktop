@@ -116,6 +116,9 @@ struct ListenerEntry {
 pub struct BridgeConfig {
     /// COMPANION_WEB=0: hard-disabled for this app run, no toggle offered.
     pub env_disabled: bool,
+    /// User toggle from Settings (persisted). False = server not served at
+    /// all — every other field stays meaningful so re-enabling restores it.
+    pub enabled: bool,
     pub port: u16,
     pub lan: bool,
 }
@@ -146,10 +149,20 @@ const STALE_MILLIS: i64 = 15_000;
 /// `effective_port`, so a `set_port` save is visible even mid-restart.
 static USER_PORT: std::sync::RwLock<Option<u16>> = std::sync::RwLock::new(None);
 
+/// User on/off toggle from the settings file (None = default on). Read live
+/// by `config_from_env`, so a `set_enabled` save is visible even mid-restart.
+static USER_ENABLED: std::sync::RwLock<Option<bool>> = std::sync::RwLock::new(None);
+
+fn user_enabled_flag() -> bool {
+    USER_ENABLED.read().unwrap().unwrap_or(true)
+}
+
 pub fn start(app: tauri::AppHandle) {
     load_or_init_config(&app);
     let config = planned_config();
-    if config.env_disabled {
+    if config.env_disabled || !config.enabled {
+        // Marker handle with no server: status() reports the configured
+        // state; a later set_enabled(true) spawns the real server.
         *BRIDGE.lock().unwrap() = Some(BridgeHandle { config, shutdown: None });
         return;
     }
@@ -159,21 +172,28 @@ pub fn start(app: tauri::AppHandle) {
     }
 }
 
-/// The persisted settings: access password + user-set port. Absent fields
-/// fall back to their defaults (generated password on first run, 1421).
+/// The persisted settings: access password, user-set port, and the on/off
+/// toggle. Absent fields fall back to their defaults (generated password on
+/// first run, port 1421, enabled).
 #[derive(Serialize, Deserialize, Default)]
 struct BridgeSettingsFile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     password: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     port: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    enabled: Option<bool>,
 }
 
-/// Parse the settings file body into (password, user-set port).
-fn parse_settings(text: &str) -> (Option<String>, Option<u16>) {
+/// Parse the settings file body into (password, user-set port, enabled).
+fn parse_settings(text: &str) -> (Option<String>, Option<u16>, Option<bool>) {
     match serde_json::from_str::<BridgeSettingsFile>(text) {
-        Ok(file) => (file.password, file.port.filter(|p| (1..=65535).contains(p))),
-        Err(_) => (None, None),
+        Ok(file) => (
+            file.password,
+            file.port.filter(|p| (1..=65535).contains(p)),
+            file.enabled,
+        ),
+        Err(_) => (None, None, None),
     }
 }
 
@@ -183,6 +203,7 @@ fn parse_settings(text: &str) -> (Option<String>, Option<u16>) {
 fn load_or_init_config(app: &tauri::AppHandle) {
     let mut password = PASSWORD.write().unwrap();
     let mut port = USER_PORT.write().unwrap();
+    let mut enabled = USER_ENABLED.write().unwrap();
     if password.is_some() {
         return;
     }
@@ -194,23 +215,30 @@ fn load_or_init_config(app: &tauri::AppHandle) {
         }
     };
     if let Ok(text) = std::fs::read_to_string(&dir.join(PASSWORD_FILE)) {
-        let (loaded_password, loaded_port) = parse_settings(&text);
+        let (loaded_password, loaded_port, loaded_enabled) = parse_settings(&text);
         *password = loaded_password;
         *port = loaded_port;
+        *enabled = loaded_enabled;
         return;
     }
     let generated = gen_password();
     *password = Some(generated.clone());
-    if let Err(e) = persist_config_to(&dir, Some(&generated), None) {
+    if let Err(e) = persist_config_to(&dir, Some(&generated), None, None) {
         eprintln!("[web] password persist failed: {e}");
     }
 }
 
-fn persist_config_to(dir: &std::path::Path, password: Option<&str>, port: Option<u16>) -> Result<(), String> {
+fn persist_config_to(
+    dir: &std::path::Path,
+    password: Option<&str>,
+    port: Option<u16>,
+    enabled: Option<bool>,
+) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let file = BridgeSettingsFile {
         password: password.map(str::to_string),
         port,
+        enabled,
     };
     let body = serde_json::to_string(&file).map_err(|e| e.to_string())?;
     std::fs::write(dir.join(PASSWORD_FILE), body).map_err(|e| e.to_string())
@@ -223,7 +251,7 @@ fn config_from_env() -> BridgeConfig {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(DEFAULT_PORT);
-    BridgeConfig { env_disabled, lan, port }
+    BridgeConfig { env_disabled, enabled: user_enabled_flag(), lan, port }
 }
 
 /// COMPANION_WEB_PORT explicitly overrides the port (the Settings field is
@@ -255,6 +283,11 @@ fn planned_config() -> BridgeConfig {
 /// contexts (restart dispatches) — the retry loop may block a worker up to
 /// a few seconds worst-case, which is fine for a deliberate toggle.
 fn spawn_bridge(app: tauri::AppHandle, config: BridgeConfig) -> Result<BridgeHandle, String> {
+    // User-disabled: no listener at all. The marker handle keeps the rest of
+    // the config (port, lan, password) so re-enabling restores it.
+    if !config.enabled {
+        return Ok(BridgeHandle { config, shutdown: None });
+    }
     let addr = std::net::SocketAddr::new(
         if config.lan {
             std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED)
@@ -394,6 +427,9 @@ fn lan_ip_via_route() -> Option<String> {
 #[serde(rename_all = "camelCase")]
 pub struct WebStatus {
     pub enabled: bool,
+    /// The persisted user toggle (Settings checkbox). False = user turned
+    /// the web app off; `enabled` is then false too (no server running).
+    pub user_enabled: bool,
     pub env_disabled: bool,
     pub lan: bool,
     pub port: u16,
@@ -408,7 +444,10 @@ pub fn status() -> WebStatus {
     let guard = BRIDGE.lock().unwrap();
     match guard.as_ref() {
         Some(handle) => WebStatus {
-            enabled: true,
+            // A real server has a shutdown signal; the disabled markers
+            // (env var or user toggle) carry None.
+            enabled: handle.shutdown.is_some(),
+            user_enabled: handle.config.enabled,
             env_disabled: handle.config.env_disabled,
             lan: handle.config.lan,
             port: handle.config.port,
@@ -416,16 +455,20 @@ pub fn status() -> WebStatus {
             password: current_password(),
             lan_ips: lan_ips(),
         },
-        None => WebStatus {
+        None => {
             // Mid-restart window: report the configured state, not defaults.
-            enabled: false,
-            env_disabled: false,
-            lan: false,
-            port: effective_port(),
-            port_locked: port_locked(),
-            password: current_password(),
-            lan_ips: lan_ips(),
-        },
+            let planned = planned_config();
+            WebStatus {
+                enabled: false,
+                user_enabled: planned.enabled,
+                env_disabled: planned.env_disabled,
+                lan: planned.lan,
+                port: planned.port,
+                port_locked: port_locked(),
+                password: current_password(),
+                lan_ips: lan_ips(),
+            }
+        }
     }
 }
 
@@ -483,6 +526,29 @@ pub fn set_lan(app: tauri::AppHandle, enabled: bool) -> Result<WebStatus, String
     restart_bridge(app, |config| config.lan = enabled)
 }
 
+/// Toggle the whole web app with a live restart, and persist the choice.
+/// Disabling tears the server down (open browser connections drop and stay
+/// down); enabling binds fresh. COMPANION_WEB=0 keeps it refused.
+pub fn set_enabled(app: tauri::AppHandle, enabled: bool) -> Result<WebStatus, String> {
+    let previous = *USER_ENABLED.read().unwrap();
+    *USER_ENABLED.write().unwrap() = Some(enabled);
+    let result = restart_bridge(app.clone(), |config| config.enabled = enabled);
+    if result.is_err() {
+        // Restart failed: roll the toggle back so it matches the live server.
+        *USER_ENABLED.write().unwrap() = previous;
+    } else if let Ok(dir) = app.path().app_data_dir() {
+        if let Err(e) = persist_config_to(
+            &dir,
+            current_password().as_deref(),
+            *USER_PORT.read().unwrap(),
+            Some(enabled),
+        ) {
+            eprintln!("[web] enabled persist failed: {e}");
+        }
+    }
+    result
+}
+
 /// Set the port (requires 1..=65535) with a live server restart, and persist
 /// it. COMPANION_WEB_PORT set? Then it stays locked and this refuses.
 pub fn set_port(app: tauri::AppHandle, port: u16) -> Result<WebStatus, String> {
@@ -499,7 +565,12 @@ pub fn set_port(app: tauri::AppHandle, port: u16) -> Result<WebStatus, String> {
         // Restart failed: roll the setting back so it matches the live server.
         *USER_PORT.write().unwrap() = previous;
     } else if let Ok(dir) = app.path().app_data_dir() {
-        if let Err(e) = persist_config_to(&dir, current_password().as_deref(), Some(port)) {
+        if let Err(e) = persist_config_to(
+            &dir,
+            current_password().as_deref(),
+            Some(port),
+            Some(user_enabled_flag()),
+        ) {
             eprintln!("[web] port persist failed: {e}");
         }
     }
@@ -514,6 +585,13 @@ pub fn web_status() -> WebStatus {
 #[tauri::command(rename_all = "snake_case")]
 pub async fn web_set_lan(app: tauri::AppHandle, enabled: bool) -> Result<WebStatus, String> {
     tauri::async_runtime::spawn_blocking(move || set_lan(app, enabled))
+        .await
+        .map_err(|e| format!("web toggle failed: {e}"))?
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn web_set_enabled(app: tauri::AppHandle, enabled: bool) -> Result<WebStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || set_enabled(app, enabled))
         .await
         .map_err(|e| format!("web toggle failed: {e}"))?
 }
@@ -856,7 +934,12 @@ pub fn web_set_password(
         .path()
         .app_data_dir()
         .map_err(|e| format!("app data dir unavailable: {e}"))?;
-    persist_config_to(&dir, password.as_deref(), *USER_PORT.read().unwrap())?;
+    persist_config_to(
+        &dir,
+        password.as_deref(),
+        *USER_PORT.read().unwrap(),
+        Some(user_enabled_flag()),
+    )?;
     Ok(status())
 }
 
@@ -903,21 +986,24 @@ mod tests {
 
     #[test]
     fn parse_settings_reads_password_and_port() {
-        let (password, port) = parse_settings(r#"{"password":"abc","port":8080}"#);
+        let (password, port, enabled) = parse_settings(r#"{"password":"abc","port":8080}"#);
         assert_eq!(password.as_deref(), Some("abc"));
         assert_eq!(port, Some(8080));
+        assert_eq!(enabled, None); // absent toggle = default (on)
+        assert_eq!(parse_settings(r#"{"enabled":false}"#).2, Some(false));
     }
 
     #[test]
     fn parse_settings_tolerates_legacy_file_and_bad_ports() {
         // Pre-port-setting file: only the password.
-        let (password, port) = parse_settings(r#"{"password":null}"#);
+        let (password, port, enabled) = parse_settings(r#"{"password":null}"#);
         assert_eq!(password, None);
         assert_eq!(port, None);
+        assert_eq!(enabled, None);
         // Out-of-range ports never come out of the file.
         assert_eq!(parse_settings(r#"{"port":0}"#).1, None);
         assert_eq!(parse_settings(r#"{"port":70000}"#).1, None);
         // Garbage parses as empty settings, not an error.
-        assert_eq!(parse_settings("not json"), (None, None));
+        assert_eq!(parse_settings("not json"), (None, None, None));
     }
 }
