@@ -12,6 +12,7 @@
 // Section ids are the override contract for `replaceSection`:
 //   general.windowSize
 //   general.window
+//   web.web
 //   plugins.plugins
 //   about.update
 // (Feature-owned General-tab ids: general.persona → chat plugin,
@@ -58,6 +59,16 @@ const CORE_TABS: (SettingsTabContribution & { order: number })[] = [
     ),
   },
   {
+    id: "web",
+    label: "Web",
+    group: "System",
+    order: 45,
+    desc: "Browser access to this companion: URLs, port, password, LAN.",
+    icon: ({ className }) => (
+      <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" /></svg>
+    ),
+  },
+  {
     id: "plugins",
     label: "Plugins",
     group: "System",
@@ -91,7 +102,7 @@ type SectionDef = {
 const CORE_SECTIONS: SectionDef[] = [
   { id: "general.windowSize", tabId: "general", component: WindowSizeViaContext },
   { id: "general.window", tabId: "general", component: WindowBehaviorViaContext },
-  { id: "general.web", tabId: "general", component: WebAppSection },
+  { id: "web.web", tabId: "web", component: WebAppSection },
   { id: "plugins.plugins", tabId: "plugins", component: PluginsSection },
   { id: "about.update", tabId: "about", component: UpdateSection },
 ];
