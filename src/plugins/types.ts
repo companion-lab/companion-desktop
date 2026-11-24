@@ -2,7 +2,7 @@
 // API surface (`PluginContext`) the host hands to it at activation.
 
 import type { ComponentType, ReactNode } from "react";
-import type { WindowAnchor } from "../events";
+import type { UiPrefs, WindowAnchor } from "../events";
 
 // ---------------------------------------------------------------------------
 // Contributions
@@ -427,6 +427,10 @@ export interface PluginContext {
       component: ComponentType<any>,
     ) => void;
     registerContextMenuItem: (item: ContextMenuItemContribution) => void;
+    /** Persist the host ui-prefs blob, apply it to this context immediately
+     *  (no event-echo wait — instant on the web bridge), and broadcast
+     *  "ui-prefs-changed" so other windows/tabs follow. */
+    setUiPrefs: (next: UiPrefs) => void;
   };
   readonly tools: {
     register: (tool: ToolContribution) => void;

@@ -12,6 +12,15 @@ export default defineConfig({
     watch: {
       ignored: ["**/src-tauri/**"],
     },
+    // Web development against the live desktop backend: open
+    // http://127.0.0.1:1420/?web=1 with the app running (`tauri dev` or a
+    // built app) and the bridge server on :1421 backs this page.
+    proxy: {
+      "/__bridge": {
+        target: "http://127.0.0.1:1421",
+        ws: true,
+      },
+    },
   },
   build: {
     target: "es2020",

@@ -1484,3 +1484,37 @@ button:disabled {
   font-size: 12px;
   margin-top: 6px;
 }
+
+/* Web App section (WebAppSection): URL rows with a copy button. */
+.st-webapp-url-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+.st-webapp-url {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 7px 10px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.st-webapp-password-input,
+.st-webapp-port-input {
+  padding: 7px 10px;
+  color: var(--text-primary);
+}
+.st-webapp-password-input:focus,
+.st-webapp-port-input:focus {
+  outline: none;
+  border-color: rgba(125, 211, 252, 0.45);
+}
+.st-webapp-port-input {
+  flex: 0 0 110px;
+}

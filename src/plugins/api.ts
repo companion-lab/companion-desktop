@@ -7,6 +7,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { LogicalPosition } from "@tauri-apps/api/dpi";
 import * as ui from "../ui";
 import { avatarBus, setAvatarHandlers } from "../avatar-bus";
+import { emitUiPrefsChanged } from "../events";
+import { saveUiPrefs } from "../ui-prefs";
 import { onProvidersChanged, registerSttProvider, registerTtsProvider } from "../services/registry";
 import { sttProvider } from "../services/stt";
 import { ttsProvider } from "../services/tts";
@@ -182,6 +184,13 @@ export function createPluginContext(
       overrideWidget: (targetId, component) =>
         overrideWidget(pluginId, targetId, component),
       registerContextMenuItem: (item) => registerContextMenuItem(pluginId, item),
+      setUiPrefs: (next) => {
+        // Persist + apply locally in the same tick, then broadcast so other
+        // windows/browser tabs follow (their own echo re-applies harmlessly).
+        saveUiPrefs(next);
+        emitUiPrefsChanged(next);
+        void tauriEmit("ui-prefs-changed", next).catch(() => {});
+      },
     },
 
     tools: {

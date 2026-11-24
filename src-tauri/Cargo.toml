@@ -22,7 +22,10 @@ tauri-plugin-global-shortcut = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", features = ["clock"] }
-reqwest = { version = "0.12", features = ["json", "blocking"] }
+# stream: plugin:http|fetch re-implementation in the web bridge streams
+# response bodies (chat SSE) instead of buffering them whole.
+reqwest = { version = "0.12", features = ["json", "blocking", "stream"] }
+bytes = "1"
 # reopen: opens the downloaded update installer with the OS handler.
 tauri-plugin-opener = "2"
 base64 = "0.22"
@@ -31,6 +34,19 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "sync-s
 companion-plugin-sdk = "0.4"
 libloading = "0.9.0"
 zip = "2"
+
+# Web bridge (web_bridge/): an HTTP + WebSocket server inside the app process
+# that serves the built frontend at /app and carries the Tauri IPC contract to
+# browsers while the desktop app hosts the real backend. axum ws is the
+# transport; tokio/futures-util power the server and streamed fetch bodies;
+# rand generates the access token for COMPANION_WEB_LAN mode.
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "fs", "io-util"] }
+futures-util = { version = "0.3", default-features = false, features = ["std", "sink"] }
+# if-addrs: enumerate the machine's IPv4 interfaces for the Web App settings
+# section (a default-route probe alone picks VPN tunnels over the real LAN).
+if-addrs = "0.13"
+rand = "0.8"
 
 # cursor_window_local/cursor_global (Win32 + X11 probe): map the raw window
 # handle to its HWND (Windows) or X11 window ID (Linux).

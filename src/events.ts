@@ -72,6 +72,14 @@ export function onUiPrefsChanged(l: Listener<UiPrefs>): () => void {
   return () => uiPrefsChangedListeners.delete(l);
 }
 
+/** Apply a UiPrefs change to THIS context synchronously, without waiting for
+ *  the Tauri event echo (the web bridge's echo is a WebSocket round trip —
+ *  the writer of the change must not lag behind its own click). The echo
+ *  still arrives afterwards and re-applies the same payload (idempotent). */
+export function emitUiPrefsChanged(p: UiPrefs): void {
+  uiPrefsChangedListeners.forEach((l) => l(p));
+}
+
 export function onWindowPrefsChanged(l: Listener<WindowPrefs>): () => void {
   windowPrefsChangedListeners.add(l);
   return () => windowPrefsChangedListeners.delete(l);

@@ -84,15 +84,20 @@ pub fn plugin_import_archive(
     let tauri::ipc::InvokeBody::Raw(archive_bytes) = request.body() else {
         return Err("expected a raw byte payload".into());
     };
-    let state = state.inner().clone();
-    let archive_bytes = archive_bytes.to_vec();
+    spawn_import(state.inner().clone(), archive_bytes.to_vec());
+    Ok(())
+}
+
+/// The import worker shared by the `plugin_import_archive` command and the
+/// web bridge (`plugin_import_archive` rides base64 frames from browsers):
+/// fire-and-forget import + `plugins-changed` broadcast on completion.
+pub(crate) fn spawn_import(state: PluginHostState, archive_bytes: Vec<u8>) {
     std::thread::spawn(move || {
         if let Err(e) = state.import_archive(&archive_bytes) {
             eprintln!("[plugins] import failed: {e}");
         }
         state.notify_changed();
     });
-    Ok(())
 }
 
 /// Delete a plugin entirely (removes its files from disk).

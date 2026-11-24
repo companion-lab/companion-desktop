@@ -17,6 +17,7 @@ import {
 } from "./window-control";
 import { MainWindowLayout } from "./ui/templates/MainWindowLayout";
 import { SlotOutlet, WidgetHost } from "./plugins/slots";
+import { isWebBridge } from "./web/bridge";
 
 const WINDOW_SIZE_STORE = "companion:window-size";
 
@@ -119,7 +120,11 @@ export default function App() {
   // bus (the avatar engine provider answers; no-ops until one is installed).
   // Controlled by the General-tab pref (live) plus the plugin runtime
   // override (ctx.window.setClickThrough); the poll reads both live.
+  // Skipped for web clients: the poll reads the HOST machine's cursor and
+  // every window mutation is a bridge no-op, so it would be ~11 pure
+  // WebSocket round trips/second on the page's own bridge connection.
   useEffect(() => {
+    if (isWebBridge()) return;
     return initClickThrough({
       canvas: () => canvasRef.current,
       alphaAt: (x, y) => avatarBus().pixelAlphaAt(x, y),
@@ -130,6 +135,13 @@ export default function App() {
 
   const onContextMenuAction = useCallback((action: string) => {
     if (action === "settings") {
+      if (isWebBridge()) {
+        // On the web there is no desktop window to reveal — the settings
+        // page is its own route (the bridge injects the access token there,
+        // so the WebSocket reconnects on its own).
+        window.location.href = "/app/settings";
+        return;
+      }
       invoke("open_settings").catch(console.error);
     } else if (action === "inspect") {
       if (import.meta.env.DEV) {

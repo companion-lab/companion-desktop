@@ -2,9 +2,14 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { listen } from "@tauri-apps/api/event";
 import App from "./App";
+import { installWebBridge } from "./web/bridge";
 import { startEventBridge } from "./events";
 import { startPluginHost } from "./plugins/host";
 
+// Must run before anything touches the Tauri IPC: in a browser served by the
+// web bridge it installs __TAURI_INTERNALS__ (inert in the native app and in
+// plain non-bridge browser runs).
+installWebBridge();
 startEventBridge();
 listen("app-reload", () => { window.location.reload(); }).catch(() => {});
 // Paint immediately; plugin contributions stream in afterwards via registry

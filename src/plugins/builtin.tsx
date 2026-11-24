@@ -26,6 +26,7 @@ import { PluginsSection } from "./PluginsSection";
 import { WindowSizeSection } from "../ui/organisms/WindowSizeSection";
 import { WindowBehaviorSection } from "../ui/organisms/WindowBehaviorSection";
 import { UpdateSection } from "../ui/organisms/UpdateSection";
+import { WebAppSection } from "../ui/organisms/WebAppSection";
 
 // Settings state lives at the page level, so any keystroke in any field
 // re-renders the whole page. Memoize every section so a change only
@@ -90,6 +91,7 @@ type SectionDef = {
 const CORE_SECTIONS: SectionDef[] = [
   { id: "general.windowSize", tabId: "general", component: WindowSizeViaContext },
   { id: "general.window", tabId: "general", component: WindowBehaviorViaContext },
+  { id: "general.web", tabId: "general", component: WebAppSection },
   { id: "plugins.plugins", tabId: "plugins", component: PluginsSection },
   { id: "about.update", tabId: "about", component: UpdateSection },
 ];

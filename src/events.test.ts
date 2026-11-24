@@ -80,6 +80,21 @@ describe("ui prefs channel", () => {
     events.onUiPrefsChanged(late);
     expect(late).not.toHaveBeenCalled();
   });
+
+  it("emitUiPrefsChanged fans out synchronously without Tauri", () => {
+    events.startEventBridge();
+    const seen: UiPrefs[] = [];
+    events.onUiPrefsChanged((p) => seen.push(p));
+    // The local-apply path: no queued frame, no echo round trip.
+    events.emitUiPrefsChanged({ hideChat: true, micShortcut: "Ctrl+Shift+M" });
+    expect(seen).toEqual([{ hideChat: true, micShortcut: "Ctrl+Shift+M" }]);
+  });
+
+  it("emitUiPrefsChanged is safe with no subscribers", () => {
+    expect(() =>
+      events.emitUiPrefsChanged({ hideChat: false, micShortcut: "Ctrl+Shift+M" }),
+    ).not.toThrow();
+  });
 });
 
 describe("window prefs channel", () => {

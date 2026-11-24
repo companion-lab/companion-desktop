@@ -7,6 +7,7 @@ mod plugin_host;
 mod updater;
 #[cfg(not(target_os = "macos"))]
 mod tray_menu;
+mod web_bridge;
 
 use tauri::{Manager, WindowEvent};
 
@@ -68,6 +69,11 @@ pub fn run() {
 
             // Discover and load plugin packages (app data + dev plugins dir)
             app.manage(plugin_host::init_state(app.handle()));
+
+            // Web bridge: serve the frontend at /app and expose the backend
+            // to browsers while this process hosts it (COMPANION_WEB=0 to
+            // disable; COMPANION_WEB_LAN=1 for 0.0.0.0 + access token).
+            web_bridge::start(app.handle().clone());
 
             // Warm the settings webview so its first open is instant — but a
             // beat later, off the boot path: a second webview spawning while
@@ -137,6 +143,10 @@ pub fn run() {
             cursor_window_local,
             cursor_global,
             window_set_follow_spaces,
+            web_bridge::web_status,
+            web_bridge::web_set_lan,
+            web_bridge::web_set_password,
+            web_bridge::web_set_port,
             click_through::windowing_backend,
             click_through::set_click_through_exclusions,
         ])
