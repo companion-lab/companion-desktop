@@ -250,6 +250,20 @@ pub async fn invoke(
             Ok(Value::Null)
         }
 
+        // --- logs ----------------------------------------------------------------
+        "log_push" => {
+            let a: LogPushArgs = args(payload, cmd)?;
+            crate::logs::log_push_web(&st.app, a.level, a.message);
+            Ok(Value::Null)
+        }
+        "log_recent" => {
+            serde_json::to_value(crate::logs::log_recent()).map_err(|e| e.to_string())
+        }
+        "log_clear" => {
+            crate::logs::log_clear(st.app.clone());
+            Ok(Value::Null)
+        }
+
         // --- tauri core plugin: events ----------------------------------------
         "plugin:event|listen" => event_listen(st, conn, payload, cmd).await,
         "plugin:event|unlisten" => event_unlisten(st, conn, payload, cmd),
@@ -558,6 +572,13 @@ struct EventListenArgs {
     target: Option<Value>,
     #[serde(default)]
     handler: u32,
+}
+
+/// Browser console capture → log sink (see crate::logs).
+#[derive(Deserialize)]
+struct LogPushArgs {
+    level: String,
+    message: String,
 }
 
 #[derive(Deserialize)]

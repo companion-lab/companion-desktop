@@ -1652,3 +1652,81 @@ button:disabled {
 .st-webapp-port-input {
   flex: 0 0 110px;
 }
+
+/* ── Settings > Logs ─────────────────────────────────────────────────── */
+
+.st-logs-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.st-logs-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 10px;
+  flex-wrap: wrap;
+}
+
+.st-logs-levels {
+  display: flex;
+  gap: 6px;
+}
+
+.st-logs-search {
+  flex: 1;
+  min-width: 120px;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.st-logs-search:focus {
+  outline: none;
+  border-color: rgba(125, 211, 252, 0.45);
+}
+
+.st-logs-scroller {
+  max-height: 420px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  overscroll-behavior: contain;
+}
+
+.st-logs-line {
+  display: flex;
+  gap: 8px;
+  padding: 1px 0;
+  color: var(--text-primary);
+}
+
+.st-logs-meta {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  white-space: nowrap;
+  user-select: all;
+}
+
+.st-logs-msg {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.st-logs-warn .st-logs-msg {
+  color: #fbbf24;
+}
+
+.st-logs-error .st-logs-msg {
+  color: #f87171;
+}

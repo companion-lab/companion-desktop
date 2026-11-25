@@ -13,6 +13,7 @@
 //   general.windowSize
 //   general.window
 //   web.web
+//   logs.logs
 //   plugins.plugins
 //   about.update
 // (Feature-owned General-tab ids: general.persona → chat plugin,
@@ -28,6 +29,7 @@ import { WindowSizeSection } from "../ui/organisms/WindowSizeSection";
 import { WindowBehaviorSection } from "../ui/organisms/WindowBehaviorSection";
 import { UpdateSection } from "../ui/organisms/UpdateSection";
 import { WebAppSection } from "../ui/organisms/WebAppSection";
+import { LogsSection } from "../ui/organisms/LogsSection";
 
 // Settings state lives at the page level, so any keystroke in any field
 // re-renders the whole page. Memoize every section so a change only
@@ -79,6 +81,16 @@ const CORE_TABS: (SettingsTabContribution & { order: number })[] = [
     ),
   },
   {
+    id: "logs",
+    label: "Logs",
+    group: "System",
+    order: 44,
+    desc: "Console output from the app and every plugin.",
+    icon: ({ className }) => (
+      <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>
+    ),
+  },
+  {
     id: "about",
     label: "About",
     group: "System",
@@ -103,6 +115,7 @@ const CORE_SECTIONS: SectionDef[] = [
   { id: "general.windowSize", tabId: "general", component: WindowSizeViaContext },
   { id: "general.window", tabId: "general", component: WindowBehaviorViaContext },
   { id: "web.web", tabId: "web", component: WebAppSection },
+  { id: "logs.logs", tabId: "logs", component: LogsSection },
   { id: "plugins.plugins", tabId: "plugins", component: PluginsSection },
   { id: "about.update", tabId: "about", component: UpdateSection },
 ];

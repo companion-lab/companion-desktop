@@ -3,6 +3,7 @@
 mod click_through;
 #[cfg(target_os = "macos")]
 mod dock_menu;
+mod logs;
 mod plugin_host;
 mod updater;
 #[cfg(not(target_os = "macos"))]
@@ -121,6 +122,9 @@ pub fn run() {
             restart_app,
             quit_app,
             open_devtools,
+            logs::log_push,
+            logs::log_recent,
+            logs::log_clear,
             updater::check_for_update,
             updater::download_update,
             updater::open_update_installer,

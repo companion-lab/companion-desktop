@@ -5,6 +5,7 @@ import { SettingsPage } from "./ui/SettingsPage";
 import { installWebBridge } from "./web/bridge";
 import { startEventBridge } from "./events";
 import { startPluginHost } from "./plugins/host";
+import { installConsoleCapture } from "./logs";
 import "./ui/settings.css";
 
 // Must run before anything touches the Tauri IPC: in a browser served by the
@@ -12,6 +13,9 @@ import "./ui/settings.css";
 // plain non-bridge browser runs).
 installWebBridge();
 startEventBridge();
+// Capture console before the plugin host starts, so plugin frontends' logs
+// land in the Settings > Logs sink too.
+installConsoleCapture();
 listen("app-reload", () => { window.location.reload(); }).catch(() => {});
 
 // Paint immediately; plugin tabs/sections stream in afterwards via registry
