@@ -135,6 +135,8 @@ pub fn run() {
             plugin_host::commands::plugin_list,
             plugin_host::commands::plugin_call,
             plugin_host::commands::plugin_list_tools,
+            plugin_host::commands::plugin_capability_call,
+            plugin_host::commands::plugin_capability_list,
             plugin_host::commands::plugin_set_enabled,
             plugin_host::commands::plugin_read_frontend,
             plugin_host::commands::plugin_storage_get,

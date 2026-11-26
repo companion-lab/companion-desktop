@@ -21,6 +21,10 @@ pub struct BridgeState {
     /// happens on a thread that may already be inside the host's call path,
     /// and re-locking would deadlock.
     permissions: Vec<String>,
+    /// The shared plugin-to-plugin capability registry (same `Arc` the host
+    /// state holds). Held directly so `provide`/`list` work during startup
+    /// `init`, when the plugin host is not managed yet.
+    pub(crate) capabilities: super::CapabilityRegistry,
 }
 
 impl BridgeState {
@@ -30,6 +34,7 @@ impl BridgeState {
         data_dir: PathBuf,
         plugin_dir: PathBuf,
         permissions: Vec<String>,
+        capabilities: super::CapabilityRegistry,
     ) -> Self {
         BridgeState {
             app,
@@ -37,6 +42,7 @@ impl BridgeState {
             data_dir,
             plugin_dir,
             permissions,
+            capabilities,
         }
     }
 

@@ -7,10 +7,13 @@
 //! lock: it can run on a thread already inside the host's call path).
 //!
 //! Capabilities:
-//! - `plugins`    (permission `"plugins"`)    — list/info/enable/disable
-//! - `window`     (permission `"window"`)     — main-window layout control
-//! - `app`        (permission `"app"`)        — resolved config, name, version
-//! - `shortcuts`  (permission `"shortcuts"`)  — global shortcut registration
+//! - `plugins`      (permission `"plugins"`)      — list/info/enable/disable
+//! - `window`       (permission `"window"`)       — main-window layout control
+//! - `app`          (permission `"app"`)          — resolved config, name, version
+//! - `shortcuts`    (permission `"shortcuts"`)    — global shortcut registration
+//! - `capabilities` (permission `"capabilities"`) — plugin-to-plugin
+//!     capabilities: `provide` a named capability for other plugins,
+//!     `call` one another plugin published, `list` what is available
 //!
 //! Everything returns `Result<Value, String>`; `bridge.rs` wraps it into
 //! the `{"ok":…}` envelope the SDK parses.
@@ -28,6 +31,7 @@ const CAPABILITIES: &[(&str, &str)] = &[
     ("window", "window"),
     ("app", "app"),
     ("shortcuts", "shortcuts"),
+    ("capabilities", "capabilities"),
 ];
 
 pub fn dispatch(
@@ -57,6 +61,7 @@ pub fn dispatch(
         "window" => window(state, method, payload),
         "app" => app(state, method, payload),
         "shortcuts" => shortcuts(state, method, payload),
+        "capabilities" => capabilities(state, method, payload),
         _ => unreachable!("capability gated by CAPABILITIES above"),
     }
 }
@@ -119,6 +124,52 @@ fn plugins(state: &BridgeState, method: &str, payload: &Value) -> Result<Value, 
             host.set_enabled(id, enabled).map(|_| Value::Null)
         }
         other => Err(format!("unknown plugins method: {other}")),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// capabilities — plugin-to-plugin capability registry
+// ---------------------------------------------------------------------------
+
+fn capabilities(state: &BridgeState, method: &str, payload: &Value) -> Result<Value, String> {
+    let registry = &state.capabilities;
+    match method {
+        "provide" => {
+            let name = payload
+                .get("name")
+                .and_then(Value::as_str)
+                .ok_or("payload must be {\"name\": \"<plugin-id>.<name>\"}")?;
+            registry.provide(&state.plugin_id, name).map(|_| Value::Null)
+        }
+        "call" => {
+            let name = payload
+                .get("name")
+                .and_then(Value::as_str)
+                .ok_or("payload must be {\"name\": …, \"method\": …, \"payload\": …}")?;
+            let method = payload
+                .get("method")
+                .and_then(Value::as_str)
+                .ok_or("payload must be {\"name\": …, \"method\": …, \"payload\": …}")?;
+            let Some(owner) = registry.owner(name) else {
+                return Err(format!("capability \"{name}\" is not provided by any backend"));
+            };
+            // Routing needs the managed host state (resolve owner's backend +
+            // enabled check) — the same "not ready during startup init"
+            // behavior as the `plugins` capability. Provide/list work anyway
+            // (the registry lives in the bridge); only calls wait.
+            let host = state
+                .app
+                .try_state::<PluginHostState>()
+                .ok_or("plugin host is not ready yet (backend still loading)")?;
+            let routed = json!({
+                "capability": name,
+                "method": method,
+                "payload": payload.get("payload").cloned().unwrap_or(Value::Null),
+            });
+            host.call(&owner, "capability_call", &routed)
+        }
+        "list" => serde_json::to_value(registry.list()).map_err(|e| e.to_string()),
+        other => Err(format!("unknown capabilities method: {other}")),
     }
 }
 

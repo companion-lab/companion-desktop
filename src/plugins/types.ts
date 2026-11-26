@@ -276,6 +276,50 @@ export type ServicesSurface = {
   onProvidersChanged: (listener: () => void) => () => void;
 };
 
+/** Method set of a published capability. */
+export type CapabilityMethods = Record<string, (payload?: unknown) => Promise<unknown>>;
+
+/** A named capability a plugin publishes for other plugins to consume
+ *  (e.g. the vision plugin's `vision.capture`). Generic: consumers decide
+ *  the method shapes they expect and cast accordingly. */
+export type CapabilityProvider = {
+  /** Human-readable summary shown by discovery surfaces. */
+  description?: string;
+  methods: CapabilityMethods;
+};
+
+/**
+ * Plugin-to-plugin capability registry access (requires the
+ * `"capabilities"` manifest permission — methods throw without it). Publish
+ * named providers others can call, discover what is available, and consume
+ * other plugins' capabilities. Names are namespaced by the owning plugin id
+ * (`"<pluginId>.<name>"`, enforced) so a plugin cannot spoof another's
+ * capability; consumers should still treat results as coming from another
+ * plugin.
+ */
+export type CapabilitiesSurface = {
+  /** Publish a capability under `"<pluginId>.<name>"` (prefix enforced).
+   *  Registering null unregisters. */
+  provide: (name: string, provider: CapabilityProvider | null) => void;
+  /** The live provider registered under `name`, or null when absent. */
+  consume: <M extends CapabilityMethods = CapabilityMethods>(
+    name: string,
+  ) => { pluginId: string; description?: string; methods: M } | null;
+  /** Every currently registered capability, with its owning plugin. */
+  list: () => Array<{ name: string; pluginId: string; description?: string }>;
+  /** Subscribe to registrations/removals. Returns the unsubscribe function. */
+  onChanged: (listener: () => void) => () => void;
+  /** Call a capability method: in-process when a frontend provider is
+   *  registered under `name` (fast path), otherwise through the host to a
+   *  backend-owned provider (which answers `handle("capability_call", …)`).
+   *  When a frontend provider exists but lacks the method, the host path is
+   *  still tried — same owning plugin may implement it in its backend. */
+  callCapability: <T = unknown>(name: string, method: string, payload?: unknown) => Promise<T>;
+  /** Backend-published capabilities (the host registry), as
+   *  `{name, pluginId}` pairs. */
+  listRemote: () => Promise<Array<{ name: string; pluginId: string }>>;
+};
+
 /** Keychain access namespaced to this plugin (`{pluginId}:{name}` accounts). */
 export type SecretsSurface = {
   set: (name: string, value: string) => Promise<void>;
@@ -469,6 +513,9 @@ export interface PluginContext {
   readonly avatar: AvatarSurface;
   /** Publish/consume capability providers (TTS, STT). */
   readonly services: ServicesSurface;
+  /** Publish/consume named capabilities with other plugins. Gated by the
+   *  `"capabilities"` manifest permission — methods throw without it. */
+  readonly capabilities: CapabilitiesSurface;
   /** OS keychain scoped to this plugin. */
   readonly secrets: SecretsSurface;
   /** Shared UI kit (atoms, molecules) so plugins match the app design. */

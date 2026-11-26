@@ -9,6 +9,12 @@ import * as ui from "../ui";
 import { avatarBus, setAvatarHandlers } from "../avatar-bus";
 import { emitUiPrefsChanged } from "../events";
 import { saveUiPrefs } from "../ui-prefs";
+import {
+  listCapabilities,
+  onCapabilitiesChanged,
+  registerCapability,
+  useCapability,
+} from "./capabilities";
 import { onProvidersChanged, registerSttProvider, registerTtsProvider } from "../services/registry";
 import { sttProvider } from "../services/stt";
 import { ttsProvider } from "../services/tts";
@@ -33,6 +39,8 @@ import {
   overrideWidget,
 } from "./registry";
 import type {
+  CapabilitiesSurface,
+  CapabilityMethods,
   LogicalSizeLike,
   PluginContext,
   SettingsTabContribution,
@@ -158,6 +166,24 @@ function forbiddenWindowSurface(pluginId: string): WindowSurface {
   };
 }
 
+/** Throwing stubs for plugins without the "capabilities" permission: both
+ *  publishing and consuming are grants — a consumer of another plugin's
+ *  capability inherits its powers (e.g. screenshots). */
+function forbiddenCapabilitiesSurface(pluginId: string): CapabilitiesSurface {
+  const msg = `[plugin:${pluginId}] ctx.capabilities requires the "capabilities" permission in manifest.json`;
+  const deny = () => {
+    throw new Error(msg);
+  };
+  return {
+    provide: deny,
+    consume: deny,
+    list: deny,
+    onChanged: deny,
+    callCapability: deny,
+    listRemote: deny,
+  };
+}
+
 export function createPluginContext(
   pluginId: string,
   permissions: string[] = [],
@@ -269,6 +295,43 @@ export function createPluginContext(
       stt: () => sttProvider(),
       onProvidersChanged,
     },
+
+    capabilities: permissions.includes("capabilities")
+      ? {
+          provide: (name, provider) => registerCapability(pluginId, name, provider),
+          consume: <M extends CapabilityMethods>(name: string) => useCapability<M>(name),
+          list: listCapabilities,
+          onChanged: onCapabilitiesChanged,
+          // Frontend providers answer in-process (fast path); otherwise the
+          // call routes through the host to the backend that published the
+          // capability (`plugin_capability_call` → owner's
+          // `handle("capability_call", …)`).
+          callCapability: async <T = unknown>(name: string, method: string, payload?: unknown) => {
+            const local = useCapability(name);
+            if (local && typeof local.methods[method] === "function") {
+              return local.methods[method](payload) as Promise<T>;
+            }
+            try {
+              return await invoke<T>("plugin_capability_call", {
+                capability: name,
+                method,
+                payload: payload ?? null,
+              });
+            } catch (e) {
+              if (local && String(e).includes("not provided by any backend")) {
+                // A frontend provider owns this name but lacks `method`;
+                // surface that instead of the misleading "no backend" error.
+                throw new Error(`capability "${name}" has no method "${method}"`);
+              }
+              throw e;
+            }
+          },
+          listRemote: async () => {
+            const pairs = await invoke<Array<[string, string]>>("plugin_capability_list");
+            return (pairs ?? []).map(([name, pluginId]) => ({ name, pluginId }));
+          },
+        }
+      : forbiddenCapabilitiesSurface(pluginId),
 
     secrets: {
       set: async (name, value) => {

@@ -80,6 +80,9 @@ struct HostInner {
     /// in dev builds, where the repo `plugins/` dir plays that role.
     bundled_dir: Option<PathBuf>,
     shared: Mutex<SharedState>,
+    /// Plugin-to-plugin capabilities (`host_call("capabilities", …)` and the
+    /// `plugin_capability_call` command). Same Arc each BridgeState holds.
+    capabilities: CapabilityRegistry,
 }
 
 struct SharedState {
@@ -96,6 +99,58 @@ pub struct LoadedPlugin {
     /// Calls into a single backend stay serialized (the FFI contract).
     pub backend: Option<Arc<Mutex<dylib::BackendInstance>>>,
     pub load_error: Option<String>,
+}
+
+/// Plugin-to-plugin capability registry: capability name → owning plugin id
+/// (e.g. `"vision.capture" → "vision"`). Names must be prefixed by the
+/// owning plugin's id, so a plugin cannot spoof another's capability — the
+/// same rule the webview-side registry (`app/src/plugins/capabilities.ts`)
+/// enforces.
+///
+/// The `Arc` is shared between the host state (command routing, teardown)
+/// and every `BridgeState`, so a backend can `provide` during its startup
+/// `init` — which runs while the plugin host is not managed yet (see the
+/// `try_state` guard in `capabilities::dispatch`). It carries its own mutex
+/// and must never be reached through the plugin-host state lock: a
+/// `host_call` always happens on a thread that may already be inside the
+/// host's call path.
+#[derive(Clone, Default)]
+pub struct CapabilityRegistry(Arc<Mutex<BTreeMap<String, String>>>);
+
+impl CapabilityRegistry {
+    /// Record `name → owner`. Rejects names not namespaced by the owner's
+    /// own id; a re-provide by the same owner replaces in place.
+    pub fn provide(&self, owner: &str, name: &str) -> Result<(), String> {
+        let prefix = format!("{owner}.");
+        if !name.starts_with(&prefix) || name.len() <= prefix.len() {
+            return Err(format!(
+                "capability \"{name}\" must be namespaced as \"{prefix}<name>\""
+            ));
+        }
+        let mut map = self.0.lock().map_err(|_| "capability registry poisoned".to_string())?;
+        map.insert(name.to_string(), owner.to_string());
+        Ok(())
+    }
+
+    /// The plugin that published `name`, if any.
+    pub fn owner(&self, name: &str) -> Option<String> {
+        self.0
+            .lock()
+            .ok()
+            .and_then(|map| map.get(name).cloned())
+    }
+
+    /// Snapshot of every registration (capability name → owner id).
+    pub fn list(&self) -> BTreeMap<String, String> {
+        self.0.lock().map(|m| m.clone()).unwrap_or_default()
+    }
+
+    /// Drop every capability owned by `plugin_id` (disable/uninstall/replace).
+    pub fn remove_plugin(&self, plugin_id: &str) {
+        if let Ok(mut map) = self.0.lock() {
+            map.retain(|_, owner| owner != plugin_id);
+        }
+    }
 }
 
 /// Serialized plugin summary for the webviews (`plugin_list`).
@@ -191,6 +246,9 @@ pub fn init_state(app: &AppHandle) -> PluginHostState {
     // UI lives there); the host's root-level file retires into its data dir.
     migrate_legacy_file(&app_data_dir, "performance.json", "vrm", "performance.json");
     let mut plugins = Vec::new();
+    // The capability registry is created before backends load: a backend's
+    // startup `init` may `provide` capabilities through its bridge.
+    let capabilities = CapabilityRegistry::default();
     for (dir, manifest) in discover(&plugin_dirs(app)) {
         let enabled = config.get(&manifest.id).copied().unwrap_or(true);
         let plugin_data_dir = data_dir.join(&manifest.id);
@@ -198,7 +256,7 @@ pub fn init_state(app: &AppHandle) -> PluginHostState {
             eprintln!("[plugins:{}] could not create data dir: {e}", manifest.id);
         }
         let (backend, load_error) = if enabled {
-            load_backend(app, &app_data_dir, &dir, &manifest)
+            load_backend(app, &app_data_dir, &dir, &manifest, &capabilities)
         } else {
             (None, None)
         };
@@ -224,6 +282,7 @@ pub fn init_state(app: &AppHandle) -> PluginHostState {
             app_data_dir,
             bundled_dir,
             shared: Mutex::new(SharedState { plugins, config }),
+            capabilities,
         }),
     }
 }
@@ -475,6 +534,38 @@ impl PluginHostState {
         backend.call(method, &payload.to_string())
     }
 
+    /// Route a capability call to the backend that published it. This is the
+    /// frontend consume path for backend-owned capabilities (the Rust SDK's
+    /// `capabilities().call` reaches the same routing through `host_call`).
+    /// The owner backend receives `handle("capability_call", …)`.
+    ///
+    /// Caveat: no capability-call cycles. A call into a plugin that is
+    /// itself mid-`handle` blocks on that backend's mutex until the
+    /// `BACKEND_LOCK_WAIT` valve fails the call.
+    pub fn call_capability(
+        &self,
+        capability: &str,
+        method: &str,
+        payload: &Value,
+    ) -> Result<Value, String> {
+        let owner = self
+            .inner
+            .capabilities
+            .owner(capability)
+            .ok_or_else(|| format!("capability \"{capability}\" is not provided by any backend"))?;
+        let routed = serde_json::json!({
+            "capability": capability,
+            "method": method,
+            "payload": payload,
+        });
+        self.call(&owner, "capability_call", &routed)
+    }
+
+    /// Snapshot of backend-published capabilities, as (name, owner) pairs.
+    pub fn capabilities_list(&self) -> Vec<(String, String)> {
+        self.inner.capabilities.list().into_iter().collect()
+    }
+
     /// Backend tools of all enabled, loaded plugins. Queried live from each
     /// backend so dynamic tool sets stay current. Backend handles are
     /// snapshotted under the shared lock, then queried one by one — a busy
@@ -524,6 +615,12 @@ impl PluginHostState {
             .position(|p| p.manifest.id == plugin_id)
             .ok_or_else(|| format!("unknown plugin: {plugin_id}"))?;
         guard.config.insert(plugin_id.to_string(), enabled);
+        // A disabled plugin stops receiving calls, so its published
+        // capabilities must vanish too (its frontend contributions drop the
+        // same way; the backend re-provides through init on re-enable).
+        if !enabled {
+            self.inner.capabilities.remove_plugin(plugin_id);
+        }
         {
             let plugin = &mut guard.plugins[idx];
             if enabled && plugin.backend.is_none() && plugin.load_error.is_none() {
@@ -532,6 +629,7 @@ impl PluginHostState {
                     &self.inner.app_data_dir,
                     &plugin.dir,
                     &plugin.manifest,
+                    &self.inner.capabilities,
                 );
                 plugin.backend = backend;
                 plugin.load_error = load_error;
@@ -676,7 +774,16 @@ impl PluginHostState {
             guard.plugins.remove(pos);
         }
         guard.config.insert(manifest.id.clone(), true);
-        let (backend, load_error) = load_backend(&self.inner.app, &app_data_dir, &dest, &manifest);
+        // A replaced package starts from a clean capability slate; the fresh
+        // backend's init re-provides whatever it publishes now.
+        self.inner.capabilities.remove_plugin(&manifest.id);
+        let (backend, load_error) = load_backend(
+            &self.inner.app,
+            &app_data_dir,
+            &dest,
+            &manifest,
+            &self.inner.capabilities,
+        );
         guard.plugins.push(LoadedPlugin {
             manifest: manifest.clone(),
             dir: dest.clone(),
@@ -729,6 +836,7 @@ impl PluginHostState {
             .ok_or_else(|| format!("unknown plugin: {plugin_id}"))?;
         let plugin = guard.plugins.remove(pos);
         guard.config.remove(plugin_id);
+        self.inner.capabilities.remove_plugin(plugin_id);
         let dir = plugin.dir.clone();
         save_config(&self.inner.app_data_dir, &guard.config)?;
         // Bundled feature: tombstone the id so the next startup does not
@@ -798,7 +906,13 @@ impl PluginHostState {
             let plugin_data_dir = self.inner.app_data_dir.join(DATA_DIR).join(&manifest.id);
             let _ = std::fs::create_dir_all(&plugin_data_dir);
             let (backend, load_error) = if enabled {
-                load_backend(&self.inner.app, &self.inner.app_data_dir, &dir, &manifest)
+                load_backend(
+                    &self.inner.app,
+                    &self.inner.app_data_dir,
+                    &dir,
+                    &manifest,
+                    &self.inner.capabilities,
+                )
             } else {
                 (None, None)
             };
@@ -942,6 +1056,7 @@ fn load_backend(
     app_data_dir: &Path,
     dir: &Path,
     manifest: &PluginManifest,
+    capabilities: &CapabilityRegistry,
 ) -> (Option<Arc<Mutex<dylib::BackendInstance>>>, Option<String>) {
     match &manifest.backend {
         None => (None, None),
@@ -961,6 +1076,7 @@ fn load_backend(
                 data_dir,
                 dir.to_path_buf(),
                 manifest.permissions.clone(),
+                capabilities.clone(),
             ) {
                 Ok(instance) => (Some(Arc::new(Mutex::new(instance))), None),
                 Err(e) => {
@@ -1206,4 +1322,59 @@ fn migrate_legacy_file(app_data_dir: &Path, legacy: &str, plugin_id: &str, targe
     }
     retire();
     println!("[plugins] migrated {legacy} into plugins-data/{plugin_id}/{target}");
+}
+
+#[cfg(test)]
+mod capability_registry_tests {
+    use super::CapabilityRegistry;
+
+    #[test]
+    fn provides_and_resolves_the_owner() {
+        let reg = CapabilityRegistry::default();
+        reg.provide("vision", "vision.capture").unwrap();
+        assert_eq!(reg.owner("vision.capture").as_deref(), Some("vision"));
+        assert_eq!(reg.owner("other.thing"), None);
+    }
+
+    #[test]
+    fn rejects_names_outside_the_owner_namespace() {
+        let reg = CapabilityRegistry::default();
+        for name in ["capture", "other.capture", "vision.", "visionx.capture"] {
+            let err = reg.provide("vision", name).unwrap_err();
+            assert!(
+                err.contains("must be namespaced as \"vision.<name>\""),
+                "unexpected error for {name}: {err}"
+            );
+        }
+        assert_eq!(reg.owner("vision.capture"), None);
+    }
+
+    #[test]
+    fn re_provide_replaces_in_place() {
+        let reg = CapabilityRegistry::default();
+        reg.provide("vision", "vision.capture").unwrap();
+        reg.provide("vision", "vision.capture").unwrap();
+        assert_eq!(reg.list().len(), 1);
+    }
+
+    #[test]
+    fn remove_plugin_drops_only_its_own_entries() {
+        let reg = CapabilityRegistry::default();
+        reg.provide("vision", "vision.capture").unwrap();
+        reg.provide("notes", "notes.search").unwrap();
+        reg.remove_plugin("vision");
+        assert_eq!(reg.owner("vision.capture"), None);
+        assert_eq!(reg.owner("notes.search").as_deref(), Some("notes"));
+        // Unknown plugin: no-op.
+        reg.remove_plugin("does-not-exist");
+        assert_eq!(reg.owner("notes.search").as_deref(), Some("notes"));
+    }
+
+    #[test]
+    fn clones_share_one_registry() {
+        let reg = CapabilityRegistry::default();
+        let clone = reg.clone();
+        reg.provide("vision", "vision.capture").unwrap();
+        assert_eq!(clone.owner("vision.capture").as_deref(), Some("vision"));
+    }
 }

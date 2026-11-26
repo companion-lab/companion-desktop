@@ -41,6 +41,32 @@ pub async fn plugin_list_tools(
         .map_err(|e| format!("plugin task failed: {e}"))?
 }
 
+/// Route a capability call to the backend that published it — the frontend
+/// consume path for backend-owned capabilities (`ctx.capabilities.
+/// callCapability`). The Rust SDK reaches the same routing through
+/// `host_call("capabilities", "call", …)`. Runs on the blocking pool like
+/// `plugin_call`: the owner's backend mutex serializes its own calls.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn plugin_capability_call(
+    state: State<'_, PluginHostState>,
+    capability: String,
+    method: String,
+    payload: Option<Value>,
+) -> Result<Value, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state.call_capability(&capability, &method, &payload.unwrap_or(Value::Null))
+    })
+    .await
+    .map_err(|e| format!("plugin task failed: {e}"))?
+}
+
+/// Snapshot of backend-published capabilities (`ctx.capabilities.listRemote`).
+#[tauri::command(rename_all = "snake_case")]
+pub fn plugin_capability_list(state: State<'_, PluginHostState>) -> Vec<(String, String)> {
+    state.capabilities_list()
+}
+
 /// Persist the enabled flag and broadcast `plugins-changed`.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn plugin_set_enabled(

@@ -7,6 +7,7 @@
 
 import { useSyncExternalStore } from "react";
 import { removePluginServices } from "../services/registry";
+import { removePluginCapabilities } from "./capabilities";
 import type {
   ContextMenuItemContribution,
   ReplyContribution,
@@ -246,6 +247,8 @@ export function removePluginContributions(pluginId: string) {
   // must not keep publishing capabilities (e.g. the chat mic button read
   // the stt provider after the stt plugin was disabled).
   removePluginServices(pluginId);
+  // Same for plugin-to-plugin capabilities (ctx.capabilities providers).
+  removePluginCapabilities(pluginId);
   if (changed) bump();
 }
 

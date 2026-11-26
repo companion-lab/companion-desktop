@@ -157,6 +157,8 @@ impl BackendInstance {
     /// Load `library`, create the plugin instance with a host bridge bound to
     /// `plugin_id`, `data_dir`, `plugin_dir`, and the manifest permissions
     /// (snapshot for the capability gate; `load` never sees the manifest).
+    /// The bridge also carries the shared plugin-to-plugin capability
+    /// registry so backends can provide capabilities during startup `init`.
     pub fn load(
         app: &tauri::AppHandle,
         library_path: &Path,
@@ -164,6 +166,7 @@ impl BackendInstance {
         data_dir: PathBuf,
         plugin_dir: PathBuf,
         permissions: Vec<String>,
+        capabilities: super::CapabilityRegistry,
     ) -> Result<Self, String> {
         // Resolve the actual library file. Manifests may carry a canonical
         // (often macOS) filename; on other platforms fall back to the
@@ -247,6 +250,7 @@ impl BackendInstance {
             data_dir,
             plugin_dir,
             permissions,
+            capabilities,
         ));
         let native_bridge = HostBridge {
             user: Arc::as_ptr(&bridge_state) as *mut c_void,
