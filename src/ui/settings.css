@@ -1641,12 +1641,12 @@ button:disabled {
   margin-top: 6px;
 }
 
-/* Web App section (WebAppSection): URL rows with a copy button. */
+/* Web App section (WebAppSection): URL rows with a copy button. Rows sit
+   inside label.st-field, so vertical rhythm comes from the field's flex gap. */
 .st-webapp-url-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 6px 0;
 }
 .st-webapp-url {
   flex: 1;

@@ -196,131 +196,134 @@ export function WebAppSection() {
 
           {status.userEnabled ? (
             <>
-            <div className="st-field">
-              <span className="st-field-label">
-                <span>Open in a browser</span>
-              </span>
-              {localUrl && <UrlRow url={localUrl} />}
-              <span className="st-field-hint">
-                Same backend as this window: plugins, chat and storage are shared.
-                Closing the app takes the website down.
-              </span>
-            </div>
-
-            <div className="st-field">
-              <span className="st-field-label">
-                <span>Port</span>
-              </span>
-              <div className="st-webapp-url-row">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  className="st-webapp-url st-webapp-port-input"
-                  value={portDraft}
-                  disabled={busy || status.portLocked}
-                  placeholder={String(status.port)}
-                  onChange={(e) => {
-                    setPortDraft(e.target.value);
-                    setPortError(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && portDirty && !busy) savePort();
-                  }}
-                />
-                <button
-                  type="button"
-                  className="preset-btn"
-                  disabled={busy || !portDirty}
-                  onClick={savePort}
-                >
-                  {portSavedFlash ? "Saved" : "Save"}
-                </button>
-              </div>
-              <span className="st-field-hint">
-                {status.portLocked
-                  ? "Overridden by the COMPANION_WEB_PORT environment variable — remove it to edit."
-                  : portDraft.trim() !== "" && !portValid
-                    ? "Port must be a number between 1 and 65535."
-                    : "Server port (default 1421). Changing it restarts the server — open browser tabs need the new URL."}
-              </span>
-              {portError && (
-                <span className="st-field-hint">Could not apply port: {portError}</span>
-              )}
-            </div>
-
-            <div className="st-field">
-              <span className="st-field-label">
-                <span>Access password</span>
-                <span className="st-field-value">
-                  {status.password == null ? "open access" : "set"}
-                </span>
-              </span>
-              <div className="st-webapp-url-row">
-                <input
-                  type="text"
-                  className="st-webapp-url st-webapp-password-input"
-                  value={passwordDraft}
-                  placeholder="(no password — open access)"
-                  onChange={(e) => setPasswordDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && passwordDirty && !busy) savePassword();
-                  }}
-                />
-                <button
-                  type="button"
-                  className="preset-btn"
-                  disabled={busy || !passwordDirty}
-                  onClick={savePassword}
-                >
-                  {passwordSavedFlash ? "Saved" : "Save"}
-                </button>
-              </div>
-              <span className="st-field-hint">
-                Required by browser connections when LAN is on. Leave empty and
-                save for open access (anyone on the network gets full backend
-                access — chat, storage and secrets). Applies immediately.
-              </span>
-            </div>
-
-            <label className="st-window-toggle">
-              <input
-                type="checkbox"
-                checked={status.lan}
-                disabled={busy}
-                onChange={(e) => toggleLan(e.target.checked)}
-              />
-              <span className="st-window-toggle-text">
-                <span className="st-window-toggle-label">
-                  Reachable on the local network {busy ? "(restarting…)" : ""}
-                </span>
-                <span className="st-field-hint">
-                  Binds the server on all interfaces. Opened pages keep working
-                  across the restart.
-                </span>
-              </span>
-            </label>
-
-            {status.lan && (
-              <div className="st-field">
+              {/* Field rows use label.st-field like every other section —
+                  div.st-field has no stylesheet entry, which left these rows
+                  without the flex column layout and row spacing. */}
+              <label className="st-field">
                 <span className="st-field-label">
-                  <span>LAN addresses</span>
+                  <span>Open in a browser</span>
                 </span>
-                {lanUrls.map((url) => (
-                  <UrlRow key={url} url={url} />
-                ))}
+                {localUrl && <UrlRow url={localUrl} />}
                 <span className="st-field-hint">
-                  {status.password == null
-                    ? "No password set — anyone on this network can open these."
-                    : "The browser asks for the access password on first connect (it remembers it afterwards). Pick the address on your Wi-Fi network (VPN tunnels list one too)."}
+                  Same backend as this window: plugins, chat and storage are shared.
+                  Closing the app takes the website down.
                 </span>
-              </div>
-            )}
+              </label>
 
-            {isWebBridge() && (
-              <span className="st-field-hint">
-                You are viewing this page through the web bridge.
-              </span>
-            )}
+              <label className="st-field">
+                <span className="st-field-label">
+                  <span>Port</span>
+                </span>
+                <div className="st-webapp-url-row">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    className="st-webapp-url st-webapp-port-input"
+                    value={portDraft}
+                    disabled={busy || status.portLocked}
+                    placeholder={String(status.port)}
+                    onChange={(e) => {
+                      setPortDraft(e.target.value);
+                      setPortError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && portDirty && !busy) savePort();
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="preset-btn"
+                    disabled={busy || !portDirty}
+                    onClick={savePort}
+                  >
+                    {portSavedFlash ? "Saved" : "Save"}
+                  </button>
+                </div>
+                <span className="st-field-hint">
+                  {status.portLocked
+                    ? "Overridden by the COMPANION_WEB_PORT environment variable — remove it to edit."
+                    : portDraft.trim() !== "" && !portValid
+                      ? "Port must be a number between 1 and 65535."
+                      : "Server port (default 1421). Changing it restarts the server — open browser tabs need the new URL."}
+                </span>
+                {portError && (
+                  <span className="st-field-hint">Could not apply port: {portError}</span>
+                )}
+              </label>
+
+              <label className="st-field">
+                <span className="st-field-label">
+                  <span>Access password</span>
+                  <span className="st-field-value">
+                    {status.password == null ? "open access" : "set"}
+                  </span>
+                </span>
+                <div className="st-webapp-url-row">
+                  <input
+                    type="text"
+                    className="st-webapp-url st-webapp-password-input"
+                    value={passwordDraft}
+                    placeholder="(no password — open access)"
+                    onChange={(e) => setPasswordDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && passwordDirty && !busy) savePassword();
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="preset-btn"
+                    disabled={busy || !passwordDirty}
+                    onClick={savePassword}
+                  >
+                    {passwordSavedFlash ? "Saved" : "Save"}
+                  </button>
+                </div>
+                <span className="st-field-hint">
+                  Required by browser connections when LAN is on. Leave empty and
+                  save for open access (anyone on the network gets full backend
+                  access — chat, storage and secrets). Applies immediately.
+                </span>
+              </label>
+
+              <label className="st-window-toggle">
+                <input
+                  type="checkbox"
+                  checked={status.lan}
+                  disabled={busy}
+                  onChange={(e) => toggleLan(e.target.checked)}
+                />
+                <span className="st-window-toggle-text">
+                  <span className="st-window-toggle-label">
+                    Reachable on the local network {busy ? "(restarting…)" : ""}
+                  </span>
+                  <span className="st-field-hint">
+                    Binds the server on all interfaces. Opened pages keep working
+                    across the restart.
+                  </span>
+                </span>
+              </label>
+
+              {status.lan && (
+                <label className="st-field">
+                  <span className="st-field-label">
+                    <span>LAN addresses</span>
+                  </span>
+                  {lanUrls.map((url) => (
+                    <UrlRow key={url} url={url} />
+                  ))}
+                  <span className="st-field-hint">
+                    {status.password == null
+                      ? "No password set — anyone on this network can open these."
+                      : "The browser asks for the access password on first connect (it remembers it afterwards). Pick the address on your Wi-Fi network (VPN tunnels list one too)."}
+                  </span>
+                </label>
+              )}
+
+              {isWebBridge() && (
+                <span className="st-field-hint">
+                  You are viewing this page through the web bridge.
+                </span>
+              )}
             </>
           ) : (
             <span className="st-field-hint">
