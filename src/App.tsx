@@ -16,6 +16,7 @@ import {
   snapToAnchor,
 } from "./window-control";
 import { MainWindowLayout } from "./ui/templates/MainWindowLayout";
+import { initMobileKeyboardGuard } from "./ui/mobile-keyboard";
 import { SlotOutlet, WidgetHost } from "./plugins/slots";
 import { isWebBridge } from "./web/bridge";
 
@@ -133,12 +134,18 @@ export default function App() {
     });
   }, []);
 
+  // Mobile keyboard guard (see ./ui/mobile-keyboard.ts): keeps the fixed
+  // avatar canvases pinned and the window unpanned while the on-screen
+  // keyboard is open. Persistent no-op on desktop. Not gated on isWebBridge:
+  // the web client on a phone is exactly where the keyboard moves things.
+  useEffect(() => initMobileKeyboardGuard(), []);
+
   const onContextMenuAction = useCallback((action: string) => {
     if (action === "settings") {
-      if (isWebBridge()) {
-        // On the web there is no desktop window to reveal — the settings
-        // page is its own route (the bridge injects the access token there,
-        // so the WebSocket reconnects on its own).
+      // Browser pages (web bridge or plain dev tab) have no desktop window
+      // to reveal — the settings page is its own route (the bridge injects
+      // the access token there, so the WebSocket reconnects on its own).
+      if (isWebBridge() || !("__TAURI_INTERNALS__" in window)) {
         window.location.href = "/app/settings";
         return;
       }

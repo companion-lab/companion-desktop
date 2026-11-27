@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { isWebBridge } from "../../web/bridge";
 
 // Tab ids are open strings: built-ins are registered by src/plugins/builtin.tsx
@@ -44,10 +44,42 @@ export function SettingsLayout({
   children,
 }: Props) {
   const current = tabs.find((t) => t.id === active) ?? tabs[0];
-  // The web client navigates between routes (/app pet, /app/settings), so it
-  // needs an in-page way back to the character window; the desktop settings
-  // window just closes over the always-running main window instead.
-  const web = isWebBridge();
+  // Pages running in a browser navigate between routes (/app pet,
+  // /app/settings), so they need an in-page way back to the character
+  // window; the desktop settings window just closes over the always-running
+  // main window instead. That's the bridge client (isWebBridge) but also a
+  // plain browser tab (e.g. the dev page without ?web=1) — anything without
+  // the native webview's __TAURI_INTERNALS__ (same runtime check as
+  // plugins/host.ts isTauri(); the polyfill defines it too, but then
+  // isWebBridge() is already true).
+  const web = isWebBridge() || !("__TAURI_INTERNALS__" in window);
+
+  // On narrow screens the sidebar is an off-canvas drawer toggled by the ☰
+  // button in the view header (the button is display:none on desktop, see
+  // the narrow-screen block in settings.css).
+  const [navOpen, setNavOpen] = useState(false);
+
+  // Escape closes the drawer (hardware keyboards on the web client).
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setNavOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navOpen]);
+
+  // Resizing past the drawer breakpoint while it's open leaves a stale open
+  // state (and the hidden backdrop div would block clicks again if the
+  // window shrinks later) — drop the state when the viewport leaves mobile.
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 680px)");
+    const onChange = (e: MediaQueryListEvent) => {
+      if (!e.matches) setNavOpen(false);
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   return (
     <>
@@ -63,7 +95,16 @@ export function SettingsLayout({
       </div>
 
       <div className="st-shell">
-      <nav className="st-side" aria-label="Settings sections">
+      {navOpen && (
+        // Scrim behind the drawer; click anywhere outside the drawer to
+        // close. aria-hidden: keyboard users close via Escape or a tab.
+        <div className="st-nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />
+      )}
+      <nav
+        id="st-side-nav"
+        className={`st-side${navOpen ? " st-nav-open" : ""}`}
+        aria-label="Settings sections"
+      >
         <div className="st-brand">
           <img
             style={{ width: "40px", height: "40px" }}
@@ -87,7 +128,10 @@ export function SettingsLayout({
                   className="st-tab"
                   aria-selected={isSelected}
                   role="tab"
-                  onClick={() => onSelect(t.id)}
+                  onClick={() => {
+                    onSelect(t.id);
+                    setNavOpen(false); // drawer: jump + dismiss in one tap
+                  }}
                 >
                   {Icon && (
                     <span className="st-tab-icon">
@@ -129,8 +173,19 @@ export function SettingsLayout({
               Back to character
             </button>
           )}
-          {/* HUD breadcrumb strip, matching the landing hero's cmp:// line */}
+          {/* HUD breadcrumb strip, matching the landing hero's cmp:// line.
+              The ☰ toggle lives here on mobile (hidden on desktop). */}
           <div className="st-hud-line">
+            <button
+              type="button"
+              className="st-menu-btn"
+              aria-label="Open settings navigation"
+              aria-expanded={navOpen}
+              aria-controls="st-side-nav"
+              onClick={() => setNavOpen(true)}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></svg>
+            </button>
             <span>cmp://settings/{current.id}</span>
             <span className="st-hud-status">
               <span className="st-hud-dot" aria-hidden="true" />

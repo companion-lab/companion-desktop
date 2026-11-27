@@ -420,6 +420,45 @@ body {
   animation: st-hud-pulse 2s ease-in-out infinite;
 }
 
+/* Mobile-only drawer pieces. The ☰ toggle is hidden beside the desktop's
+   always-visible sidebar; both are shown by the narrow-screen block at the
+   bottom of this file. */
+.st-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  padding: 0;
+  font-family: inherit;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.st-menu-btn:hover:not(:disabled) {
+  border-color: rgba(168, 85, 247, 0.45);
+  background: var(--accent-subtle);
+  color: var(--accent-soft);
+}
+
+.st-menu-btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.st-menu-btn svg {
+  display: block;
+}
+
+.st-nav-backdrop {
+  display: none;
+}
+
 /* Main Content Area — fills the rest of the viewport next to the sidebar so
    the web client reads like a normal full-width dashboard. The desktop
    settings window is fixed at 780px (548px of content) so no cap is needed
@@ -1390,62 +1429,45 @@ button:disabled {
     flex-direction: column;
   }
 
-  /* Sidebar becomes a compact page header: brand row on top, then each tab
-     group as a horizontally scrollable chip row. The desktop pieces that
-     only make sense in a tall column (autosave status, spacer) drop out. */
+  /* Sidebar becomes an off-canvas drawer: hidden past the left edge behind
+     the ☰ button in the view header, sliding in over a dimmed scrim. The
+     desktop column content (brand, grouped tab list, autosave status) is
+     reused as-is inside the drawer. */
+  .st-menu-btn {
+    display: inline-flex;
+  }
+
   .st-side {
-    width: 100%;
-    height: auto;
-    position: static;
-    border-right: none;
-    border-bottom: 1px solid var(--border-subtle);
-    padding: 10px 12px 12px;
-    gap: 8px;
-    overflow-y: visible;
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(300px, 84vw);
+    height: 100dvh;
+    transform: translateX(-104%);
+    visibility: hidden;
+    transition: transform 0.22s ease, visibility 0.22s;
+    z-index: 60;
+    /* Opaque over the page: as an overlay drawer the glass background let
+       content and the scrim show through. */
+    background: #0a071a;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
-  .st-brand {
-    padding: 2px 2px 0;
-    margin-bottom: 0;
-    border-bottom: none;
+  .st-side.st-nav-open {
+    transform: translateX(0);
+    visibility: visible;
+    box-shadow: 0 0 44px rgba(0, 0, 0, 0.55);
   }
 
-  .st-nav-group {
-    flex-direction: row;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 0;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .st-nav-group::-webkit-scrollbar {
-    display: none;
-  }
-
-  .st-nav-group-label {
-    flex-shrink: 0;
-    padding: 0 4px 0 2px;
-  }
-
-  .st-tab {
-    width: auto;
-    flex-shrink: 0;
-    padding: 6px 11px;
-    white-space: nowrap;
-    border-radius: 999px;
-  }
-
-  /* The desktop's left accent bar doesn't fit chips; the filled chip
-     background already signals selection. */
-  .st-tab[aria-selected="true"]::before {
-    content: none;
-  }
-
-  .st-side-spacer,
-  .st-side-status {
-    display: none;
+  .st-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    border: none;
+    padding: 0;
+    background: rgba(2, 0, 20, 0.55);
+    cursor: default;
   }
 
   .st-main {

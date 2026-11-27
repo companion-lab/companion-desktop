@@ -2,7 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- interactive-widget=resizes-content: the keyboard shrinks the layout
+         viewport (Chromium Android default, made explicit so WebView shells
+         and Samsung Internet can't drift to the panning resizes-visual
+         behavior). src/ui/mobile-keyboard.ts pins the fixed avatar canvases
+         to the pre-keyboard height while the layout is shrunk, so the
+         character never moves and the keyboard just covers its legs. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content"
+    />
     <title>companion</title>
     <style>
       html,
