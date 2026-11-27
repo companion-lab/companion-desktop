@@ -11,11 +11,11 @@ test.describe("settings page", () => {
     await page.goto("/settings.html");
     await expect(page.getByRole("tab", { name: "General" })).toBeVisible();
     // Sidebar groups render in order with their tabs nested. Core keeps only
-    // host-level tabs (General, Web, Plugins, About); everything else arrives
-    // from plugin frontends (not loaded in a plain browser).
+    // host-level tabs (General, Web, Plugins, Logs, About); everything else
+    // arrives from plugin frontends (not loaded in a plain browser).
     const groups = page.locator(".st-nav-group-label");
     await expect(groups).toHaveText(["Avatar", "System"]);
-    await expect(page.locator(".st-tab")).toHaveCount(4);
+    await expect(page.locator(".st-tab")).toHaveCount(5);
 
     await page.getByRole("tab", { name: "Plugins" }).click();
     // The title carries a blinking "_" caret span, so match the label only.
