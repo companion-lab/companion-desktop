@@ -33,13 +33,13 @@ concurrency:
 env:
   # Pinned release tag per bundled plugin repo (companion-lab/companion-plugin-<id>).
   PLUGIN_VERSIONS: |
-    alarms=v0.4.1
-    calendar=v0.4.1
-    chat=v0.4.1
-    mcp=v0.4.1
-    stt=v0.4.1
-    tts=v0.4.1
-    vrm=v0.4.1
+    alarms=v0.5.0
+    calendar=v0.5.0
+    chat=v0.5.0
+    mcp=v0.5.0
+    stt=v0.5.0
+    tts=v0.5.0
+    vrm=v0.5.0
 
 jobs:
   build:
