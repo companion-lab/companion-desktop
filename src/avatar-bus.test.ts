@@ -44,6 +44,7 @@ describe("avatar bus", () => {
       reloadLibrary: () => {},
       describeCapabilities: () => ({ emotions: [], motions: [] }),
       pixelAlphaAt: () => null,
+      setCarry: () => {},
     };
     setAvatarHandlers(handlers);
     expect(calls).toEqual(["motion:wave", "emotion:my_joy"]);

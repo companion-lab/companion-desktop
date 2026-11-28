@@ -41,6 +41,9 @@ export type WindowPrefs = {
   /** Cursor pass-through over transparent pixels. Default on — the desktop
    *  pet's core behavior. */
   clickThrough: boolean;
+  /** Panels lean and glow while the window is dragged (see ui/drag-react.ts).
+   *  Optional so prefs saved before the field existed still load. */
+  interactionFx?: boolean;
   /** macOS only: follow every Space / coexist with fullscreen apps. */
   followSpaces: boolean;
   /** Last window position (physical px), persisted after drags. */

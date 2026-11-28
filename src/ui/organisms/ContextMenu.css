@@ -42,7 +42,13 @@
     "Helvetica Neue", Arial, sans-serif;
   text-align: left;
   cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition: background 0.12s ease, color 0.12s ease, transform 0.08s ease;
+}
+
+/* Press feedback: a quick compress under the cursor, like the settings
+   buttons. */
+.ctx-menu-item:active {
+  transform: scale(0.97);
 }
 
 .ctx-menu-item:hover,

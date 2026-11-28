@@ -14,6 +14,7 @@ export const DEFAULT_WINDOW_PREFS: WindowPrefs = {
   anchor: "free",
   alwaysOnTop: true,
   clickThrough: true,
+  interactionFx: true,
   followSpaces: true,
   savedPosition: null,
 };

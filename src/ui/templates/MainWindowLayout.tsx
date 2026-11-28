@@ -108,6 +108,9 @@ export function MainWindowLayout({ canvasRef, onContextMenuAction, children }: P
           width: "100%",
           height: "100%",
           background: "transparent",
+          // Affordance over interactive pixels (the pet itself); transparent
+          // pixels ignore cursor events under click-through.
+          cursor: "grab",
         }}
       />
       {children}

@@ -16,6 +16,7 @@ import {
   snapToAnchor,
 } from "./window-control";
 import { MainWindowLayout } from "./ui/templates/MainWindowLayout";
+import { initDragReact } from "./ui/drag-react";
 import { initMobileKeyboardGuard } from "./ui/mobile-keyboard";
 import { SlotOutlet, WidgetHost } from "./plugins/slots";
 import { isWebBridge } from "./web/bridge";
@@ -131,6 +132,19 @@ export default function App() {
       alphaAt: (x, y) => avatarBus().pixelAlphaAt(x, y),
       enabled: () =>
         clickThroughEnabled(winPrefsRef.current ?? DEFAULT_WINDOW_PREFS),
+    });
+  }, []);
+
+  // Drag-react (see ./ui/drag-react.ts): the character sways while its window
+  // is dragged and settles on release. Gated on the same General-tab pref
+  // pattern as click-through (read live via winPrefsRef). Skipped for web
+  // clients like the click-through poll: a browser tab has no desktop window
+  // to drag, so onMoved would never fire anyway.
+  useEffect(() => {
+    if (isWebBridge()) return;
+    return initDragReact({
+      canvas: () => canvasRef.current,
+      enabled: () => winPrefsRef.current?.interactionFx ?? true,
     });
   }, []);
 

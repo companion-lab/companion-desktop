@@ -97,6 +97,12 @@ export function WindowBehaviorSection({ winPrefs, onChange }: Props) {
         checked={winPrefs.clickThrough}
         onChange={(v) => set({ clickThrough: v })}
       />
+      <ToggleRow
+        label="Interaction effects"
+        hint="The character sways and its hair follows while you drag the window, then settles back."
+        checked={winPrefs.interactionFx ?? true}
+        onChange={(v) => set({ interactionFx: v })}
+      />
       {IS_MACOS && (
         <ToggleRow
           label="Follow across Spaces"

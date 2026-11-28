@@ -69,6 +69,11 @@ export type AvatarHandlers = {
    *  or null when it can't be read (no scene, readback failure). Backs the
    *  core click-through hit test; null means "stay interactive". */
   pixelAlphaAt: (cssX: number, cssY: number) => number | null;
+  /** Carry reaction while the window is dragged (see ui/drag-react.ts):
+   *  normalized lean target, +x = screen right, +y = screen down; null =
+   *  released, the engine settles the pose back. Streamed per move event —
+   *  never buffered, unlike the registration calls. */
+  setCarry: (lean: { x: number; y: number } | null) => void;
 };
 
 const noopHandlers: AvatarHandlers = {
@@ -84,6 +89,7 @@ const noopHandlers: AvatarHandlers = {
   reloadLibrary: () => {},
   describeCapabilities: () => ({ emotions: [], motions: [] }),
   pixelAlphaAt: () => null,
+  setCarry: () => {},
 };
 
 let handlers: AvatarHandlers = noopHandlers;

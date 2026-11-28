@@ -175,6 +175,24 @@ function removePluginContributionsFor(ids: string[]) {
 }
 
 /**
+ * Plugin-facing React: the module object with React's real jsx/jsxs (from
+ * react/jsx-runtime) attached. The main "react" entry never exports them, so
+ * plugin bundles built before the SDK's JsxRuntime bridge probe
+ * `React.jsx`/`React.jsxs`, find nothing, and fall back to a createElement
+ * wrapper — under that fallback React has no static-children concept, so dev
+ * builds warn for every keyless element in any multi-child JSX (seen as
+ * "Check the render method of `co`" spam from old chat bundles). The shim
+ * prefers `React.jsx` when it is a function, so attaching the runtime here
+ * reroutes older bundles onto the validated runtime without rebuilding them.
+ */
+function pluginFacingReact(): typeof React {
+  return Object.assign({}, React, {
+    jsx: JsxRuntime.jsx,
+    jsxs: JsxRuntime.jsxs,
+  });
+}
+
+/**
  * Shared host globals for plugin bundles. They import react/@tauri-apps
  * through the `@companion/plugin` host-bridge, which reads these — plugins
  * never bundle their own copies. `tools.get` exposes the frontend tool
@@ -196,7 +214,7 @@ function setHostGlobals() {
     };
   };
   w.__companion_host__ = {
-    React,
+    React: pluginFacingReact(),
     ReactDOMClient,
     JsxRuntime,
     settings: { useSettingsState },
