@@ -1675,30 +1675,96 @@ button:disabled {
   flex: 0 0 110px;
 }
 
-/* ── Settings > Logs ─────────────────────────────────────────────────── */
+/* ── Settings > Logs (Grafana-style log viewer) ──────────────────────── */
 
 .st-logs-actions {
   display: flex;
   gap: 8px;
 }
 
+.st-logs-actions .preset-btn {
+  padding: 5px 12px;
+}
+
+/* Level chips with live counts (Grafana's level bar). */
+.st-logs-chiprow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 8px;
+}
+
+.st-logs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.st-logs-chip:hover {
+  border-color: rgba(168, 85, 247, 0.4);
+}
+
+.st-logs-chip:not(.st-logs-chip-on) {
+  opacity: 0.45;
+}
+
+.st-logs-chip-on {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.st-logs-chip-all.st-logs-chip-on {
+  color: var(--accent-soft);
+  border-color: rgba(168, 85, 247, 0.45);
+  background: var(--accent-subtle);
+}
+
+.st-logs-chip-info.st-logs-chip-on {
+  color: #93c5fd;
+  border-color: rgba(147, 197, 253, 0.35);
+}
+
+.st-logs-chip-warn.st-logs-chip-on {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
+.st-logs-chip-error.st-logs-chip-on {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+.st-logs-chip-count {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
 .st-logs-controls {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 2px 0 10px;
-  flex-wrap: wrap;
-}
-
-.st-logs-levels {
-  display: flex;
-  gap: 6px;
+  margin: 0 0 8px;
 }
 
 .st-logs-search {
   flex: 1;
   min-width: 120px;
   font-size: 12px;
+  font-family: var(--font-mono);
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border-subtle);
@@ -1711,38 +1777,134 @@ button:disabled {
   border-color: rgba(125, 211, 252, 0.45);
 }
 
+.st-logs-tool {
+  flex: 0 0 auto;
+  padding: 5px 12px !important;
+}
+
 .st-logs-scroller {
-  max-height: 420px;
+  max-height: 440px;
   overflow-y: auto;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.28);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 6px 4px;
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.5;
   overscroll-behavior: contain;
 }
 
+/* One log line: chevron | time | level | source | message | copy */
 .st-logs-line {
-  display: flex;
+  display: grid;
+  grid-template-columns: 12px max-content max-content max-content minmax(0, 1fr) 22px;
+  align-items: start;
   gap: 8px;
-  padding: 1px 0;
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: pointer;
   color: var(--text-primary);
+  user-select: text;
 }
 
-.st-logs-meta {
-  flex: 0 0 auto;
-  color: var(--text-dim);
+.st-logs-line:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.st-logs-line:focus-visible {
+  outline: 1px solid rgba(168, 85, 247, 0.5);
+  outline-offset: -1px;
+}
+
+.st-logs-line.st-logs-warn {
+  background: rgba(251, 191, 36, 0.05);
+  box-shadow: inset 2px 0 0 rgba(251, 191, 36, 0.55);
+}
+
+.st-logs-line.st-logs-warn:hover {
+  background: rgba(251, 191, 36, 0.09);
+}
+
+.st-logs-line.st-logs-error {
+  background: rgba(248, 113, 113, 0.07);
+  box-shadow: inset 2px 0 0 #f87171;
+}
+
+.st-logs-line.st-logs-error:hover {
+  background: rgba(248, 113, 113, 0.11);
+}
+
+.st-logs-chev {
+  margin-top: 3px;
+  color: var(--text-muted);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  transition: transform 0.12s ease;
+}
+
+.st-logs-chev-open {
+  transform: rotate(90deg);
+}
+
+.st-logs-line:hover .st-logs-chev {
+  color: var(--text-secondary);
+}
+
+.st-logs-ts {
+  color: var(--text-muted);
   white-space: nowrap;
-  user-select: all;
+  font-variant-numeric: tabular-nums;
+}
+
+.st-logs-level {
+  display: inline-block;
+  width: 46px;
+  margin-top: 2px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  padding: 1px 0;
+}
+
+.st-logs-warn .st-logs-level {
+  color: #fde68a;
+  background: rgba(251, 191, 36, 0.14);
+}
+
+.st-logs-error .st-logs-level {
+  color: #fecaca;
+  background: rgba(248, 113, 113, 0.16);
+}
+
+.st-logs-src {
+  max-width: 110px;
+  margin-top: 2px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .st-logs-msg {
   min-width: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  user-select: all;
+}
+
+.st-logs-msg-nowrap {
+  white-space: pre;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .st-logs-warn .st-logs-msg {
@@ -1751,4 +1913,160 @@ button:disabled {
 
 .st-logs-error .st-logs-msg {
   color: #f87171;
+}
+
+.st-logs-mark {
+  color: var(--text-primary);
+  background: rgba(168, 85, 247, 0.35);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.st-logs-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  padding: 2px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.st-logs-line:hover .st-logs-copy,
+.st-logs-copy:focus-visible {
+  opacity: 0.8;
+}
+
+.st-logs-copy:hover {
+  opacity: 1;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.st-logs-copyicon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+
+/* Expanded detail: absolute time, level, source + full message. */
+.st-logs-detail {
+  margin: 1px 8px 6px 28px;
+  border-left: 2px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 0 6px 6px 0;
+  padding: 8px 10px;
+  cursor: default;
+}
+
+.st-logs-detail-warn {
+  border-left-color: rgba(251, 191, 36, 0.5);
+}
+
+.st-logs-detail-error {
+  border-left-color: rgba(248, 113, 113, 0.55);
+}
+
+.st-logs-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.st-logs-detail-k {
+  margin-right: 5px;
+  color: var(--text-muted);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.st-logs-detail-msg {
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  user-select: text;
+}
+
+/* Status bar: live/paused indicator, counts, jump-to-latest. */
+.st-logs-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.st-logs-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.st-logs-livedot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.st-logs-live-on {
+  color: #34d399;
+}
+
+.st-logs-live-on .st-logs-livedot {
+  background: #34d399;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.7);
+  animation: st-logs-pulse 2s ease-in-out infinite;
+}
+
+@keyframes st-logs-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.st-logs-status-text {
+  color: var(--text-muted);
+}
+
+.st-logs-jump {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-soft);
+  background: var(--accent-subtle);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  border-radius: 999px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.st-logs-jump:hover {
+  background: rgba(168, 85, 247, 0.25);
 }

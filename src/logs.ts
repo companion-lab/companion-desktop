@@ -54,7 +54,9 @@ function formatArgs(args: unknown[]): string {
     if (typeof a === "string") {
       parts.push(a);
     } else if (a instanceof Error) {
-      parts.push(`${a.name}: ${a.message}`);
+      // Keep the stack trace — it's what makes an error traceable in the
+      // panel. V8 stacks already start with "Name: message", so prefer them.
+      parts.push(a.stack ?? `${a.name}: ${a.message}`);
     } else if (typeof a === "object" && a !== null) {
       try {
         parts.push(JSON.stringify(a));
